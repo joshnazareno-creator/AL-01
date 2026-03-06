@@ -1,5 +1,5 @@
 {
     "name": "AL-01",
-    "description": "A persistent digital organism",
-    "version": "1.0.0"
+    "description": "A persistent digital organism with autonomous evolution",
+    "version": "2.0.0"
 }

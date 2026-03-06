@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "exported_at": "2026-03-01T12:00:00+00:00",
+  "id": "AL-01-child-3",
+  "parent_id": "AL-01",
+  "generation": 1,
+  "genome": {
+    "traits": {
+      "adaptability": 0.523417,
+      "energy_efficiency": 0.487291,
+      "resilience": 0.510833,
+      "perception": 0.495002,
+      "creativity": 0.531648
+    },
+    "effective_traits": {
+      "adaptability": 0.523417,
+      "energy_efficiency": 0.487291,
+      "resilience": 0.510833,
+      "perception": 0.495002,
+      "creativity": 0.531648
+    },
+    "mutation_rate": 0.11,
+    "mutation_delta": 0.09,
+    "fitness_components": {
+      "survival": 0.72,
+      "efficiency": 0.65,
+      "stability": 0.81,
+      "adaptation": 0.58
+    }
+  },
+  "fitness": 0.700050,
+  "trait_fitness": 0.509638,
+  "birth_time": "2026-02-28T08:30:00+00:00",
+  "age_seconds": 99000.0,
+  "energy": 0.74,
+  "evolution_count": 12,
+  "interaction_count": 5,
+  "state": "idle",
+  "genome_hash": "a1b2c3d4e5f6",
+  "fitness_history": [
+    { "value": 0.480000, "recorded_at": "2026-03-01T12:00:00+00:00" },
+    { "value": 0.492000, "recorded_at": "2026-03-01T12:00:00+00:00" },
+    { "value": 0.501000, "recorded_at": "2026-03-01T12:00:00+00:00" },
+    { "value": 0.509638, "recorded_at": "2026-03-01T12:00:00+00:00" }
+  ],
+  "nickname": "Sparky",
+  "checksum": "713a0e6133a13bc2f439428a3aa795fa8403eb69311173689b91e9fdfcffad23"
+}

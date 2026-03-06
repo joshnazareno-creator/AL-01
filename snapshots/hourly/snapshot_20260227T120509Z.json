@@ -1,0 +1,206 @@
+{
+  "snapshot_version": 1,
+  "timestamp": "2026-02-27T12:05:09.370191+00:00",
+  "timestamp_unix": 1772193909.370191,
+  "label": "auto",
+  "state": {
+    "interaction_count": 66,
+    "memory_size": 16,
+    "awareness": 0.600635,
+    "evolution_count": 64,
+    "version": "3.2",
+    "uptime_seconds": 7223.97,
+    "age_seconds": 155440.0,
+    "birth_time": "2026-02-25T16:54:29.385995+00:00",
+    "uptime_sessions": 19,
+    "integrity_status": "BROKEN",
+    "life_log_events": 11952,
+    "policy_weights": {
+      "curiosity_weight": 0.5,
+      "risk_weight": 0.3,
+      "social_weight": 0.5
+    },
+    "total_interactions_all_time": 1,
+    "first_snapshot_timestamp": "2026-02-25T07:36:49.747960+00:00",
+    "snapshot_count": 29,
+    "firestore_writes_today": 86,
+    "genome": {
+      "traits": {
+        "adaptability": 0.530282,
+        "energy_efficiency": 0.562212,
+        "resilience": 0.516196,
+        "perception": 0.516939,
+        "creativity": 0.505344
+      },
+      "effective_traits": {
+        "adaptability": 0.530282,
+        "energy_efficiency": 0.562212,
+        "resilience": 0.516196,
+        "perception": 0.516939,
+        "creativity": 0.505344
+      },
+      "fitness": 0.526194,
+      "mutation_rate": 0.1,
+      "mutation_delta": 0.1
+    },
+    "fitness": 0.526194,
+    "population_size": 14,
+    "population_ids": [
+      "AL-01",
+      "AL-01-child-1",
+      "AL-01-child-2",
+      "AL-01-child-3",
+      "AL-01-child-4",
+      "AL-01-child-5",
+      "AL-01-child-6",
+      "AL-01-child-7",
+      "AL-01-child-8",
+      "AL-01-child-9",
+      "AL-01-child-10",
+      "AL-01-child-11",
+      "AL-01-child-12",
+      "AL-01-child-13"
+    ],
+    "pending_stimuli": 0,
+    "brain_enabled": false,
+    "stagnation_count": 5,
+    "autonomy": {
+      "stagnation_count": 5,
+      "is_stagnant": true,
+      "total_decisions": 2503,
+      "fitness_history_len": 10,
+      "fitness_variance": 3.861e-05,
+      "decision_interval": 10,
+      "fitness_threshold": 0.45,
+      "effective_fitness_threshold": 0.388232,
+      "stagnation_window": 10,
+      "awareness": 0.600772,
+      "total_stimuli": 21,
+      "energy": 0.553326,
+      "exploration_mode": false,
+      "novelty_accumulator": 0.3,
+      "mutation_rate_offset": 0.05,
+      "env_trait_weights": {
+        "adaptability": 0.7261,
+        "energy_efficiency": 0.917,
+        "resilience": 1.3212,
+        "perception": 1.0057,
+        "creativity": 0.8524
+      },
+      "idle_cycles": 97,
+      "entropy_active": true,
+      "vital_score": {
+        "vital_index": 45.75,
+        "identity_persistence": 93.46,
+        "trait_variance": 0.39,
+        "adaptation_success": 88.37,
+        "entropy_resistance": 0.77,
+        "adaptation_attempts": 43,
+        "adaptation_successes": 38
+      }
+    },
+    "vital_score": {
+      "vital_index": 45.75,
+      "identity_persistence": 93.46,
+      "trait_variance": 0.39,
+      "adaptation_success": 88.37,
+      "entropy_resistance": 0.77,
+      "adaptation_attempts": 43,
+      "adaptation_successes": 38
+    },
+    "global_cycle": 97,
+    "environment": {
+      "cycle": 196,
+      "resource_pool": 50.6119,
+      "temperature": 0.427684,
+      "entropy_pressure": 0.011044,
+      "resource_abundance": 0.705555,
+      "noise_level": 0.211138,
+      "effective_abundance": 0.705555,
+      "mutation_cost_multiplier": 1.2138,
+      "energy_regen_rate": 0.6035,
+      "trait_decay_multiplier": 1.0221,
+      "fitness_noise_penalty": 0.031671,
+      "survival_modifier": 0.6778,
+      "active_scarcity_count": 0,
+      "scarcity_events": []
+    },
+    "trait_variance": {
+      "creativity": 0.00697741,
+      "energy_efficiency": 0.00191553,
+      "resilience": 0.0042798,
+      "perception": 0.0033472,
+      "adaptability": 0.006207
+    },
+    "behavior_summary": {
+      "organism_profiles": {
+        "AL-01": {
+          "organism_id": "AL-01",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.981
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.939
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.2,
+              "mutate_ratio": 0.72,
+              "blend_ratio": 0.08,
+              "decision_count": 50
+            }
+          }
+        }
+      },
+      "strategy_distribution": {
+        "explorer": 1
+      },
+      "convergence": {
+        "status": "stable",
+        "slope": 7.72e-06,
+        "current_variance": 0.00454539,
+        "variance_samples": 20,
+        "trait_convergence": {
+          "creativity": "stable",
+          "energy_efficiency": "stable",
+          "resilience": "stable",
+          "perception": "stable",
+          "adaptability": "stable"
+        },
+        "fitness_spread": 0.176963
+      },
+      "tracked_organisms": 1
+    },
+    "evolution_tracker": {
+      "generation_counter": 1,
+      "mutation_events": 0,
+      "lineages": 13
+    },
+    "experiment": null,
+    "snapshot_manager": {
+      "running": true,
+      "interval_seconds": 3600,
+      "retention_days": 30,
+      "total_snapshots": 1,
+      "snapshots_this_session": 1,
+      "disk_usage_bytes": 6119,
+      "disk_usage_mb": 0.01,
+      "oldest_snapshot": "2026-02-27T11:04:45.712858+00:00",
+      "newest_snapshot": "2026-02-27T11:04:45.712858+00:00",
+      "remote_sync_enabled": true,
+      "snapshot_dir": ".\\snapshots/hourly"
+    }
+  },
+  "checksum": "20f7d3a25cd8b531fa1fef9c5854489dc2d1f23cce536468ff08435c95eda992"
+}
