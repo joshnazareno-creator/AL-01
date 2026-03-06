@@ -15,6 +15,7 @@ import enum
 import hashlib
 import json
 import logging
+import math
 import os
 import random
 import threading
@@ -52,6 +53,24 @@ VERSION = "3.9"
 FOUNDER_MUTATION_CAP: float = 0.08      # AL-01 mutation rate never exceeds this
 FOUNDER_ENERGY_FLOOR: float = 0.25      # AL-01 energy never drops below this
 FOUNDER_FITNESS_FLOOR: float = 0.15     # AL-01 won't die unless below this
+
+# ── v3.10: Rare reproduction constants ────────────────────────────────
+RARE_REPRO_CYCLE_INTERVAL: int = 500     # evaluate every N cycles
+RARE_REPRO_CHANCE: float = 0.05          # 5 % random gate
+RARE_REPRO_POP_CAP: int = 50            # hard population cap for this path
+RARE_REPRO_ENERGY_MIN: float = 0.65     # parent must have >= this energy
+RARE_REPRO_FITNESS_MIN: float = 0.50    # parent must have >= this fitness
+RARE_REPRO_STAGNATION_MAX: float = 0.90 # parent stagnation must be < this
+RARE_REPRO_ENERGY_COST: float = 0.30    # deducted from parent on birth
+RARE_REPRO_CHILD_ENERGY: float = 0.50   # child starts with this energy
+RARE_REPRO_MUTATION_RATE: float = 0.10  # mutation variance for child genome
+RARE_REPRO_COOLDOWN_CYCLES: int = 2000  # min cycles between births per parent
+
+# ── v3.12: Novelty & stagnation detection constants ─────────────────
+NOVELTY_HISTORY_MAX: int = 500          # rolling window of novelty scores
+NOVELTY_STAGNATION_WINDOW: int = 100    # last N births to average
+NOVELTY_STAGNATION_THRESHOLD: float = 0.05  # avg novelty below this = stagnating
+NOVELTY_STAGNATION_COOLDOWN: int = 1000    # cycles between stagnation interventions
 
 
 # ── v3.9: Internal Communication Signal ───────────────────────────────
@@ -323,6 +342,7 @@ class MetabolismConfig:
     behavior_analysis_interval: int = 20  # behavior snapshot every N ticks
     auto_reproduce_interval: int = 15  # check autonomous reproduction every N ticks
     child_autonomy_interval: int = 10  # child evolution cycle every N ticks
+    rare_reproduce_interval: int = 50  # rare reproduction gate every N ticks
 
 
 class MetabolismScheduler:
@@ -362,17 +382,31 @@ class MetabolismScheduler:
         if self._tick_count % self._config.autonomy_interval == 0:
             self._organism.autonomy_cycle()
 
+        # ── v3.17: Death resolution BEFORE reproduction ──────────────
+        # Child autonomy — evolve all children independently
+        # (includes energy depletion, fitness floor death checks)
+        if self._tick_count % self._config.child_autonomy_interval == 0:
+            self._organism.child_autonomy_cycle()
+
+        # Sync tick counter into population for birth-lock / idempotency
+        self._organism._population.set_tick(self._tick_count)
+
+        # ── Reproduction passes (only after death resolution) ────────
         # Autonomous reproduction check
         if self._tick_count % self._config.auto_reproduce_interval == 0:
             self._organism.auto_reproduce_cycle()
 
-        # Child autonomy — evolve all children independently
-        if self._tick_count % self._config.child_autonomy_interval == 0:
-            self._organism.child_autonomy_cycle()
-
         # Behavior analysis snapshot
         if self._tick_count % self._config.behavior_analysis_interval == 0:
             self._organism.behavior_analysis_cycle()
+
+        # v3.10: Rare reproduction — heavily gated, checked infrequently
+        if self._tick_count % self._config.rare_reproduce_interval == 0:
+            self._organism.rare_reproduction_cycle()
+
+        # v3.12: Novelty stagnation detection — checked with rare reproduction
+        if self._tick_count % self._config.rare_reproduce_interval == 0:
+            self._organism.novelty_stagnation_check()
 
 
 class Organism:
@@ -398,6 +432,7 @@ class Organism:
         self._memory_manager = memory_manager or MemoryManager(data_dir=data_dir)
         self._logger = logging.getLogger("al01.organism")
         self._state_lock = threading.RLock()
+        self._tick_lock = threading.Lock()  # v3.17: Concurrency guard — only one tick at a time
         self._loop_stop_event = threading.Event()
         self._loop_thread: Optional[threading.Thread] = None
         self._organism_state: OrganismState = OrganismState.IDLE
@@ -439,8 +474,15 @@ class Organism:
         # v3.3: Per-organism fitness floor tracking for survival_grace_cycles
         self._below_fitness_cycles: Dict[str, int] = {}
 
+        # v3.10: Per-organism cooldown for rare reproduction
+        self._last_birth_cycle: Dict[str, int] = {}
+
+        # v3.12: Novelty tracking — rolling window of per-birth novelty scores
+        self._novelty_history: List[float] = []
+        self._last_novelty_intervention_cycle: int = 0
+
         # v3.4: Default population cap (overridden by ExperimentConfig when active)
-        self._default_max_population: int = 50
+        self._default_max_population: int = 60
 
         # v3.5: Per-cycle instrumentation
         self._cycle_stats = CycleStats()
@@ -510,7 +552,14 @@ class Organism:
         self.scheduler = MetabolismScheduler(self, self.config)
 
     def tick(self) -> None:
-        self.scheduler.tick()
+        # v3.17: Concurrency guard — prevent overlapping tick execution
+        if not self._tick_lock.acquire(blocking=False):
+            self._logger.debug("[TICK] Skipped — another tick is already running")
+            return
+        try:
+            self.scheduler.tick()
+        finally:
+            self._tick_lock.release()
 
     @property
     def state(self) -> Dict[str, Any]:
@@ -656,6 +705,255 @@ class Organism:
             novelty_drive=round(novelty, 6),
         )
 
+    # ------------------------------------------------------------------
+    # Ecosystem Health Metric (v3.11)
+    # ------------------------------------------------------------------
+
+    def ecosystem_health(self) -> Dict[str, Any]:
+        """Compute a single composite ecosystem health score.
+
+        Formula::
+
+            score = avg_fitness * 0.4
+                  + population_diversity * 0.4
+                  + resource_pool_health * 0.2
+
+        Returns detailed breakdown alongside the composite score.
+        """
+        # Average fitness across living organisms
+        fitness_map = self._population.population_fitness()
+        if fitness_map:
+            avg_fitness = sum(fitness_map.values()) / len(fitness_map)
+        else:
+            avg_fitness = 0.0
+
+        # Population diversity (normalised genome entropy)
+        diversity = self._population.diversity_metrics()
+        genome_entropy = diversity.get("genome_entropy", 0.0)
+        unique_hashes = diversity.get("unique_genome_hashes", 0)
+        pop_size = self._population.size
+        # Normalise entropy: max possible = log2(pop_size) when all unique
+        max_entropy = math.log2(pop_size) if pop_size >= 2 else 1.0
+        diversity_score = min(1.0, genome_entropy / max_entropy) if max_entropy > 0 else 0.0
+
+        # Resource pool health
+        pool_health = self._environment.pool_fraction
+
+        # Composite score
+        score = (avg_fitness * 0.4
+                 + diversity_score * 0.4
+                 + pool_health * 0.2)
+
+        return {
+            "score": round(score, 4),
+            "avg_fitness": round(avg_fitness, 4),
+            "diversity_score": round(diversity_score, 4),
+            "pool_health": round(pool_health, 4),
+            "genome_entropy": round(genome_entropy, 4),
+            "unique_genomes": unique_hashes,
+            "population_size": pop_size,
+            "cycle": self._global_cycle,
+        }
+
+    # ------------------------------------------------------------------
+    # Birth Event Data (v3.11) — for visual layer
+    # ------------------------------------------------------------------
+
+    def last_birth_events(self, n: int = 10) -> List[Dict[str, Any]]:
+        """Return the last *n* reproduction events from the life log.
+
+        This feeds the visual birth-event animation system with data about
+        recent births: parent, child, cycle, and type of reproduction.
+        """
+        log_path = os.path.join(self._data_dir, "data", "life_log.jsonl")
+        if not os.path.exists(log_path):
+            return []
+        repro_types = {
+            "auto_reproduce", "stability_reproduction",
+            "lone_survivor_reproduction", "rare_reproduction",
+        }
+        events: List[Dict[str, Any]] = []
+        try:
+            with open(log_path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("event_type") in repro_types:
+                        payload = entry.get("payload", {})
+                        events.append({
+                            "event_type": entry["event_type"],
+                            "parent_id": payload.get("parent_id"),
+                            "child_id": payload.get("child_id"),
+                            "cycle": payload.get("cycle", 0),
+                            "timestamp": entry.get("timestamp"),
+                        })
+        except Exception:
+            pass
+        return events[-n:]
+
+    # ------------------------------------------------------------------
+    # Novelty Metric (v3.12) — genome distance at birth
+    # ------------------------------------------------------------------
+
+    def _record_novelty(self, parent_genome: Genome, child_genome: Genome) -> float:
+        """Compute and record the novelty score for a birth event.
+
+        Novelty = Euclidean genome distance between parent and child.
+        Appended to ``_novelty_history`` (capped at NOVELTY_HISTORY_MAX).
+        Returns the novelty score.
+        """
+        from al01.genome import genome_distance
+        novelty = genome_distance(parent_genome, child_genome)
+        self._novelty_history.append(round(novelty, 6))
+        if len(self._novelty_history) > NOVELTY_HISTORY_MAX:
+            self._novelty_history = self._novelty_history[-NOVELTY_HISTORY_MAX:]
+        return round(novelty, 6)
+
+    @property
+    def novelty_history(self) -> List[float]:
+        """Rolling window of per-birth novelty scores."""
+        return list(self._novelty_history)
+
+    @property
+    def avg_novelty(self) -> float:
+        """Average novelty over the last NOVELTY_STAGNATION_WINDOW births."""
+        window = self._novelty_history[-NOVELTY_STAGNATION_WINDOW:]
+        if not window:
+            return 0.0
+        return round(sum(window) / len(window), 6)
+
+    @property
+    def novelty_rate(self) -> float:
+        """Alias for avg_novelty — the current novelty rate."""
+        return self.avg_novelty
+
+    # ------------------------------------------------------------------
+    # Diversity Score (v3.12)
+    # ------------------------------------------------------------------
+
+    def population_diversity_index(self) -> float:
+        """Average pairwise genome distance across all living organisms.
+
+        High value = healthy diversity.  Low value = monoculture risk.
+        """
+        return self._population.population_diversity()
+
+    # ------------------------------------------------------------------
+    # Evolution Stagnation Detection (v3.12)
+    # ------------------------------------------------------------------
+
+    def novelty_stagnation_check(self) -> Optional[Dict[str, Any]]:
+        """Detect if evolution has stagnated based on novelty scores.
+
+        If avg novelty over the last NOVELTY_STAGNATION_WINDOW births is
+        below NOVELTY_STAGNATION_THRESHOLD, trigger countermeasures:
+        1. Mutation storm via environment named event
+        2. Log a stagnation alert
+        3. Enter exploration mode for the founder
+
+        Returns a record of the intervention, or None if not stagnating.
+        """
+        if len(self._novelty_history) < 10:
+            return None  # not enough data yet
+
+        avg = self.avg_novelty
+        if avg >= NOVELTY_STAGNATION_THRESHOLD:
+            return None  # healthy innovation
+
+        # Cooldown — don't intervene too frequently
+        if (self._global_cycle - self._last_novelty_intervention_cycle
+                < NOVELTY_STAGNATION_COOLDOWN):
+            return None
+
+        self._last_novelty_intervention_cycle = self._global_cycle
+
+        actions_taken: List[str] = []
+
+        # 1. Trigger a mutation storm in the environment
+        from al01.environment import NamedEvent, NAMED_EVENT_CATALOGUE
+        storm_def = next(
+            (e for e in NAMED_EVENT_CATALOGUE if e["name"] == "mutation_storm"),
+            None,
+        )
+        if storm_def:
+            event = NamedEvent(
+                name=storm_def["name"],
+                description="Stagnation response: forced mutation storm",
+                effects=dict(storm_def["effects"]),
+                remaining_cycles=20,
+                started_at=_utc_now(),
+            )
+            self._environment._named_events.append(event)
+            actions_taken.append("mutation_storm")
+
+        # 2. Boost mutation rates for all organisms temporarily
+        for oid in self._population.member_ids:
+            m = self._population.get(oid)
+            if m:
+                current_offset = m.get("mutation_rate_offset", 0.0)
+                self._population.update_member(oid, {
+                    "mutation_rate_offset": round(current_offset + 0.05, 6),
+                })
+        actions_taken.append("mutation_rate_boost")
+
+        # 3. Enter exploration mode for the founder
+        self._autonomy.mode = "exploration"
+        actions_taken.append("exploration_mode")
+
+        record = {
+            "event": "novelty_stagnation_intervention",
+            "cycle": self._global_cycle,
+            "avg_novelty": avg,
+            "threshold": NOVELTY_STAGNATION_THRESHOLD,
+            "window_size": min(len(self._novelty_history), NOVELTY_STAGNATION_WINDOW),
+            "actions": actions_taken,
+            "timestamp": _utc_now(),
+        }
+
+        self._life_log.append_event(
+            event_type="novelty_stagnation",
+            payload=record,
+        )
+        self._logger.warning(
+            "[STAGNATION] Novelty stagnation detected: avg=%.4f < %.4f — actions: %s",
+            avg, NOVELTY_STAGNATION_THRESHOLD, ", ".join(actions_taken),
+        )
+        return record
+
+    # ------------------------------------------------------------------
+    # Evolution Dashboard Data (v3.12)
+    # ------------------------------------------------------------------
+
+    def evolution_dashboard(self) -> Dict[str, Any]:
+        """Return a concise evolution dashboard snapshot.
+
+        Includes: population, species count, novelty rate, diversity index,
+        ecosystem health score, and stagnation status.
+        """
+        census = self._population.species_census()
+        health = self.ecosystem_health()
+        diversity = self._population.population_diversity()
+
+        return {
+            "population": self._population.size,
+            "species": len(census),
+            "species_breakdown": {k: len(v) for k, v in census.items()},
+            "novelty_rate": self.novelty_rate,
+            "diversity_index": round(diversity, 4),
+            "ecosystem_health": health["score"],
+            "avg_fitness": health["avg_fitness"],
+            "stagnating": (self.avg_novelty < NOVELTY_STAGNATION_THRESHOLD
+                           if len(self._novelty_history) >= 10 else False),
+            "total_births_tracked": len(self._novelty_history),
+            "cycle": self._global_cycle,
+            "timestamp": _utc_now(),
+        }
+
     @property
     def stimuli(self) -> List[str]:
         with self._state_lock:
@@ -766,12 +1064,18 @@ class Organism:
                         self._state["last_reproduce_at"] = evo
                     result["reproduced"] = True
                     result["child_id"] = child["id"]
+                    # v3.11: species divergence check
+                    self._population.check_speciation(child["id"], "AL-01")
+                    # v3.12: novelty metric
+                    child_genome = Genome.from_dict(child["genome"])
+                    novelty = self._record_novelty(self._genome, child_genome)
                     self._life_log.append_event(
                         event_type="reproduction",
                         payload={
                             "child_id": child["id"],
                             "parent_evolution": evo,
                             "child_fitness": child["genome"]["fitness"],
+                            "novelty": novelty,
                         },
                     )
 
@@ -857,6 +1161,13 @@ class Organism:
             "survival_modifier": self._environment.survival_modifier(),
         }
 
+        # v3.13: Draw metabolic energy from the global resource pool (parent)
+        pop_size = self._population.size
+        metabolic_cost = self._environment.effective_metabolic_cost()
+        granted = self._environment.request_energy(metabolic_cost, pop_size)
+        grant_ratio = granted / metabolic_cost if metabolic_cost > 0 else 1.0
+        env_modifiers["pool_grant_ratio"] = grant_ratio
+
         energy_before = self._autonomy.energy
 
         record = self._autonomy.decide(
@@ -935,6 +1246,8 @@ class Organism:
         if self._experiment:
             survival_threshold = self._experiment.config.survival_fitness_threshold
             survival_grace = self._experiment.config.survival_grace_cycles
+        # v3.13: Scarcity pressure reduces survival grace
+        survival_grace = self._environment.effective_survival_grace(survival_grace)
         effective_threshold = founder_threshold  # AL-01 gets founder protection
         if fitness < effective_threshold:
             self._below_fitness_cycles["AL-01"] = self._below_fitness_cycles.get("AL-01", 0) + 1
@@ -1212,8 +1525,25 @@ class Organism:
         """Advance the environment model by one cycle.
 
         Drifts variables, regenerates resources, triggers scarcity events.
+        v3.13: Uses smart_regenerate with population efficiency data.
         """
         record = self._environment.tick()
+
+        # v3.13: Smart regeneration — factor in population efficiency
+        avg_eff = self._cycle_stats.efficiency_ratio
+        avg_eff = max(0.0, min(1.0, avg_eff)) if avg_eff else 0.5
+        self._environment.smart_regenerate(avg_efficiency=avg_eff)
+
+        # v3.14: Emergency regeneration when pool drops below floor
+        pop_size = self._population.size
+        emergency = self._environment.emergency_regenerate(pop_size)
+        if emergency > 0:
+            record["emergency_regen"] = round(emergency, 4)
+            self._logger.info(
+                "[ENV-TICK] Emergency regen activated: +%.1f energy (pop=%d)",
+                emergency, pop_size,
+            )
+
         if self._experiment:
             self._experiment.record_cycle(self._global_cycle)
         return record
@@ -1225,6 +1555,8 @@ class Organism:
         above threshold for N consecutive cycles — no manual intervention.
         v3.4: reproduction_enabled toggle from experiment config.
         """
+        # v3.17: Sync tick so birth-lock / idempotency guards work
+        self._population.set_tick(self._global_cycle)
         reproductions: List[Dict[str, Any]] = []
         repro_threshold = 0.5
         repro_cycles = 5
@@ -1236,8 +1568,15 @@ class Organism:
             max_pop = self._experiment.config.max_population
             reproduction_enabled = self._experiment.config.reproduction_enabled
 
+        # v3.16: Resource-based carrying capacity — dynamic cap from pool
+        carrying_cap = self._environment.resource_carrying_capacity()
+        max_pop = min(max_pop, carrying_cap)
+
         # Sync cap into population so spawn_child enforces it everywhere
         self._population.max_population = max_pop
+
+        # v3.13: Scarcity pressure raises reproduction threshold
+        repro_threshold = self._environment.effective_reproduction_threshold(repro_threshold)
 
         # v3.4: Prune if already over cap (e.g. from pre-existing population)
         if self._population.size > max_pop:
@@ -1268,6 +1607,8 @@ class Organism:
                 oid,
                 fitness_threshold=repro_threshold,
                 required_cycles=repro_cycles,
+                energy_min=self._environment.config.repro_energy_min_auto,
+                energy_cost=self._environment.config.repro_energy_cost,
             )
             if child:
                 child_id = child["id"]
@@ -1281,6 +1622,11 @@ class Organism:
                     oid, child_id, self._global_cycle, child_traits,
                 )
                 reproductions.append(child)
+                # v3.12: novelty metric
+                parent_member = self._population.get(oid)
+                parent_genome = Genome.from_dict(parent_member["genome"]) if parent_member else Genome()
+                child_genome = Genome.from_dict(child.get("genome", {}))
+                novelty = self._record_novelty(parent_genome, child_genome)
                 self._life_log.append_event(
                     event_type="auto_reproduction",
                     payload={
@@ -1288,6 +1634,7 @@ class Organism:
                         "child_id": child_id,
                         "cycle": self._global_cycle,
                         "child_fitness": child.get("genome", {}).get("fitness", 0),
+                        "novelty": novelty,
                     },
                 )
                 self._logger.info(
@@ -1350,12 +1697,23 @@ class Organism:
         # v3.9: Elite protection — top organisms are shielded from mutation
         elite_set = set(self._population.elite_ids())
 
+        # v3.11: Compute strategy distribution once for anti-monoculture
+        # and explorer novelty reward across the entire child cycle.
+        strategy_dist = self._behavior_analyzer.population_strategy_distribution()
+        # v3.11: Check if shock is active for resilience bonus
+        shock_active = self._environment.is_shock_active
+        shock_resilience_bonus = self._environment.shock_resilience_bonus
+
         for oid in self._population.member_ids:
             if oid == "AL-01":
                 continue  # parent is handled by autonomy_cycle()
 
             member = self._population.get(oid)
             if not member or not member.get("alive", True):
+                continue
+
+            # v3.16: Skip dormant organisms — they consume 0 metabolic cost
+            if member.get("state") == "dormant":
                 continue
 
             genome_data = member.get("genome", {})
@@ -1377,6 +1735,29 @@ class Organism:
 
             fitness = child_genome.weighted_fitness(env_weights)
             child_traits = child_genome.traits
+
+            # ── v3.11: Ecosystem pressure modifiers ──────────────────
+            # 1. Anti-monoculture: diminishing returns for dominant strategy
+            profile = self._behavior_analyzer.get_or_create_profile(oid)
+            classification = profile.classify_strategy()
+            organism_strategy = classification.get("strategy", "neutral")
+
+            monoculture_penalty = self._population.strategy_dominance_penalty(
+                strategy_dist, organism_strategy,
+            )
+            fitness *= monoculture_penalty
+
+            # 2. Explorer novelty reward: boost when explorers are rare
+            if organism_strategy == "explorer":
+                novelty_mult = self._population.explorer_novelty_multiplier(
+                    strategy_dist,
+                )
+                fitness *= novelty_mult
+
+            # 3. Shock resilience bonus: reward resilient organisms
+            if shock_active and organism_strategy == "resilient":
+                fitness += shock_resilience_bonus
+            # ─────────────────────────────────────────────────────────
 
             # Record fitness in tracker
             self._evolution_tracker.record_fitness(
@@ -1400,10 +1781,22 @@ class Organism:
             energy -= cfg.energy_decay_per_cycle
             cost_mult = env_modifiers.get("mutation_cost_multiplier", 1.0)
 
+            # v3.13: Draw metabolic energy from the global resource pool
+            pop_size = self._population.size
+            metabolic_cost = self._environment.effective_metabolic_cost()
+            granted = self._environment.request_energy(metabolic_cost, pop_size)
+            # Scale internal energy recovery by how much was actually granted
+            grant_ratio = granted / metabolic_cost if metabolic_cost > 0 else 1.0
+            # Partial grant → less energy recovery, simulating resource scarcity
+            energy += 0.01 * grant_ratio  # small pool-fed recovery
+
             # v3.3: Survival grace cycles — fitness floor death for children
+            # v3.13: Scarcity pressure reduces survival grace
+            base_survival_grace = survival_grace
+            effective_grace = self._environment.effective_survival_grace(base_survival_grace)
             if fitness < survival_threshold:
                 self._below_fitness_cycles[oid] = self._below_fitness_cycles.get(oid, 0) + 1
-                if self._below_fitness_cycles[oid] >= survival_grace:
+                if self._below_fitness_cycles[oid] >= effective_grace:
                     self._logger.warning(
                         "[SURVIVAL] %s below fitness floor %.4f for %d cycles — death",
                         oid, survival_threshold, self._below_fitness_cycles[oid],
@@ -1425,6 +1818,11 @@ class Organism:
             # Apply exploration mode boost if active
             if self._autonomy.exploration_mode:
                 mutation_rate = min(1.0, mutation_rate + self._autonomy.config.stagnation_mutation_boost)
+
+            # v3.13: Scarcity pressure — raise effective mutation cost
+            if self._environment.is_scarcity_pressure:
+                scarcity_sev = self._environment.scarcity_severity
+                cost_mult *= (1.0 + scarcity_sev * 0.5)  # up to +50% cost
 
             # v3.9: Elite Protection — elites skip mutation, get crossover instead
             is_elite = oid in elite_set
@@ -1550,7 +1948,46 @@ class Organism:
         return analysis
 
     def _handle_death(self, organism_id: str, cause: str) -> None:
-        """Process organism death: remove from population, log, track."""
+        """Process organism death: enter dormant state or remove from population.
+
+        v3.16 Dormancy-first: ALL death causes for non-founder organisms
+        trigger dormant state instead of hard death.  Dormant organisms
+        consume zero metabolic cost and can reactivate when conditions
+        improve.  Only organisms that are *already dormant* and fail
+        again are truly removed.
+        The AL-01 founder never goes dormant — it uses the floor guard.
+        """
+        member = self._population.get(organism_id)
+        # v3.16: Any death cause triggers dormancy for non-founder,
+        # non-already-dormant organisms
+        is_dormant_candidate = (
+            organism_id != "AL-01"
+            and member is not None
+            and member.get("state") != "dormant"
+        )
+
+        if is_dormant_candidate:
+            dormant_info = self._population.enter_dormant(organism_id, cause)
+            if dormant_info:
+                self._behavior_analyzer.remove_organism(organism_id)
+                self._life_log.append_event(
+                    event_type="organism_dormant",
+                    payload={
+                        "organism_id": organism_id,
+                        "cause": cause,
+                        "cycle": self._global_cycle,
+                        **dormant_info,
+                    },
+                )
+                self._logger.warning(
+                    "[DORMANT] %s entered dormant state: %s at cycle %d",
+                    organism_id, cause, self._global_cycle,
+                )
+                # v3.15: Check extinction recovery after dormancy
+                self.check_extinction_reseed()
+                return
+
+        # Full death path — energy_depleted or founder or already dormant
         death_info = self._population.remove_member(organism_id, cause)
         if death_info:
             self._evolution_tracker.record_death(
@@ -1576,25 +2013,515 @@ class Organism:
             self.check_extinction_reseed()
 
     def check_extinction_reseed(self) -> Optional[Dict[str, Any]]:
-        """If population is extinct, reseed from the Genesis Vault.
+        """v3.15 Extinction Recovery Protocol.
 
-        Returns the reseed record if reseeding happened, or None.
+        If population < 5, auto-seed up to 10 new children from the
+        top-fitness lineage.  Falls back to Genesis Vault if no fit
+        organisms are available.
+
+        Returns the reseed/recovery record if action was taken, or None.
         """
-        reseed = self._genesis_vault.check_and_reseed(
-            population=self._population,
-            evolution_tracker=self._evolution_tracker,
-            life_log=self._life_log,
-            behavior_analyzer=self._behavior_analyzer,
-            global_cycle=self._global_cycle,
-        )
-        if reseed:
-            self._logger.warning(
-                "[GENESIS VAULT] Reseed #%d: spawned %s from genesis seed at cycle %d",
-                reseed["reseed_number"],
-                reseed["organism_id"],
-                self._global_cycle,
+        pop_size = self._population.size
+        EXTINCTION_THRESHOLD = 5
+        RECOVERY_SPAWN_COUNT = 10
+
+        # Original genesis vault reseed — population fully extinct
+        if pop_size == 0:
+            reseed = self._genesis_vault.check_and_reseed(
+                population=self._population,
+                evolution_tracker=self._evolution_tracker,
+                life_log=self._life_log,
+                behavior_analyzer=self._behavior_analyzer,
+                global_cycle=self._global_cycle,
             )
-        return reseed
+            if reseed:
+                self._logger.warning(
+                    "[GENESIS VAULT] Reseed #%d: spawned %s from genesis seed at cycle %d",
+                    reseed["reseed_number"],
+                    reseed["organism_id"],
+                    self._global_cycle,
+                )
+            return reseed
+
+        # v3.15: Extinction recovery — pop < 5 but not zero
+        if pop_size >= EXTINCTION_THRESHOLD:
+            return None
+
+        self._logger.warning(
+            "[EXTINCTION RECOVERY] Population critically low (%d < %d) — "
+            "initiating recovery protocol at cycle %d",
+            pop_size, EXTINCTION_THRESHOLD, self._global_cycle,
+        )
+
+        # Find top-fitness organisms (living, dormant, or recently dead)
+        top_members = self._population.top_fitness_members(n=5)
+        if not top_members:
+            # Fallback: use genesis vault seed
+            self._logger.warning(
+                "[EXTINCTION RECOVERY] No fit organisms found — falling back to genesis vault",
+            )
+            reseed = self._genesis_vault.check_and_reseed(
+                population=self._population,
+                evolution_tracker=self._evolution_tracker,
+                life_log=self._life_log,
+                behavior_analyzer=self._behavior_analyzer,
+                global_cycle=self._global_cycle,
+            )
+            return reseed
+
+        # Spawn children from the top-fitness lineage
+        spawned = []
+        seeds_used = []
+        to_spawn = RECOVERY_SPAWN_COUNT
+        for seed_member in top_members:
+            if to_spawn <= 0:
+                break
+            seed_genome_data = seed_member.get("genome", {})
+            if not seed_genome_data:
+                continue
+            seed_genome = Genome.from_dict(seed_genome_data)
+            seed_id = seed_member.get("id", "unknown")
+            seed_evo = seed_member.get("evolution_count", 0)
+            seeds_used.append(seed_id)
+
+            # Spawn multiple children per seed (distribute evenly)
+            per_seed = max(1, to_spawn // max(1, len(top_members)))
+            for _ in range(per_seed):
+                if to_spawn <= 0:
+                    break
+                child = self._population.spawn_child(
+                    seed_genome, parent_evolution=seed_evo, parent_id=seed_id,
+                )
+                if child:
+                    child_id = child["id"]
+                    child_traits = child.get("genome", {}).get("traits", {})
+                    self._evolution_tracker.register_organism(
+                        child_id, parent_id=seed_id, traits=child_traits,
+                        cycle=self._global_cycle,
+                    )
+                    # v3.11: species divergence check
+                    self._population.check_speciation(child_id, seed_id)
+                    # v3.12: novelty metric
+                    child_genome_obj = Genome.from_dict(child.get("genome", {}))
+                    novelty = self._record_novelty(seed_genome, child_genome_obj)
+                    spawned.append(child_id)
+                    to_spawn -= 1
+
+        # Also wake any dormant organisms
+        woke = []
+        for did in self._population.dormant_ids:
+            wake_record = self._population.wake_dormant(did, energy_boost=0.3)
+            if wake_record:
+                woke.append(did)
+
+        recovery_record = {
+            "event": "extinction_recovery",
+            "cycle": self._global_cycle,
+            "population_before": pop_size,
+            "population_after": self._population.size,
+            "spawned": spawned,
+            "seeds_used": seeds_used,
+            "dormant_woken": woke,
+            "timestamp": _utc_now(),
+        }
+
+        self._life_log.append_event(
+            event_type="extinction_recovery",
+            payload=recovery_record,
+        )
+        self._logger.warning(
+            "[EXTINCTION RECOVERY] Spawned %d children from %d seeds, woke %d dormant "
+            "(pop: %d → %d) at cycle %d",
+            len(spawned), len(seeds_used), len(woke),
+            pop_size, self._population.size, self._global_cycle,
+        )
+        return recovery_record
+
+    # ------------------------------------------------------------------
+    # v3.15: Dormant Lifecycle Management
+    # ------------------------------------------------------------------
+
+    def wake_dormant_cycle(self) -> List[Dict[str, Any]]:
+        """v3.15: Check dormant organisms and wake those whose conditions improved.
+
+        Dormant organisms are woken when:
+        - Resource pool is above scarcity threshold (conditions have improved)
+        - OR population is critically low (< 5, extinction recovery)
+
+        Returns list of wake records.
+        """
+        woke: List[Dict[str, Any]] = []
+        dormant_ids = self._population.dormant_ids
+        if not dormant_ids:
+            return woke
+
+        # v3.16: Configurable pool threshold for waking dormant organisms
+        wake_threshold = self._environment.config.dormant_wake_pool_fraction
+        pool_healthy = self._environment.pool_fraction >= wake_threshold
+        pop_critical = self._population.size < 5
+
+        if not pool_healthy and not pop_critical:
+            return woke
+
+        for did in dormant_ids:
+            wake_record = self._population.wake_dormant(did, energy_boost=0.3)
+            if wake_record:
+                self._life_log.append_event(
+                    event_type="dormant_wake",
+                    payload={
+                        "organism_id": did,
+                        "cycle": self._global_cycle,
+                        **wake_record,
+                    },
+                )
+                self._logger.info(
+                    "[DORMANT-WAKE] %s woke from dormancy at cycle %d (pool_healthy=%s, pop_critical=%s)",
+                    did, self._global_cycle, pool_healthy, pop_critical,
+                )
+                woke.append(wake_record)
+        return woke
+
+    # ------------------------------------------------------------------
+    # v3.16: Stability Reproduction
+    # ------------------------------------------------------------------
+
+    def stability_reproduction_cycle(self) -> List[Dict[str, Any]]:
+        """v3.16: Spawn offspring when resources are abundant and fitness is high.
+
+        Conditions (per organism):
+        - Pool fraction ≥ ``stability_repro_pool_fraction`` (default 80%)
+        - Organism fitness ≥ adaptive fitness threshold
+        - Random probability per cycle (default 5%)
+        - Population under carrying capacity
+
+        Returns list of spawn records.
+        """
+        # v3.17: Sync tick so birth-lock / idempotency guards work
+        self._population.set_tick(self._global_cycle)
+        spawned: List[Dict[str, Any]] = []
+        cfg = self._environment.config
+        pool_frac = self._environment.pool_fraction
+
+        if pool_frac < cfg.stability_repro_pool_fraction:
+            return spawned
+
+        # Dynamic carrying cap from resource pool
+        carrying_cap = self._environment.resource_carrying_capacity()
+        if self._population.size >= carrying_cap:
+            return spawned
+
+        # Adaptive fitness baseline
+        eff_threshold = self._autonomy._effective_fitness_threshold
+
+        for oid in self._population.member_ids:
+            if self._population.size >= carrying_cap:
+                break
+
+            member = self._population.get(oid)
+            if not member:
+                continue
+            if not member.get("alive", True):
+                continue
+            if member.get("state") == "dormant":
+                continue
+
+            fitness = member.get("genome", {}).get("fitness", 0.0)
+            if fitness < eff_threshold:
+                continue
+
+            # v3.18: Energy gate for stability reproduction
+            parent_energy = member.get("energy", 0.0)
+            if parent_energy < cfg.repro_energy_min_stability:
+                continue
+
+            # Probability gate — slow rate, v3.18: scales with resource pool
+            effective_prob = cfg.stability_repro_probability * pool_frac
+            if random.random() > effective_prob:
+                continue
+
+            genome_data = member.get("genome", {})
+            parent_genome = Genome.from_dict(genome_data)
+            evo = member.get("evolution_count", 0)
+
+            child = self._population.spawn_child(
+                parent_genome, parent_evolution=evo, parent_id=oid,
+            )
+            if child:
+                # v3.18: Deduct reproduction energy cost from parent
+                self._population.deduct_energy(oid, cfg.repro_energy_cost)
+                child_id = child["id"]
+                child_traits = child.get("genome", {}).get("traits", {})
+                self._evolution_tracker.register_organism(
+                    child_id, parent_id=oid, traits=child_traits,
+                    cycle=self._global_cycle,
+                )
+                self._evolution_tracker.record_reproduction(
+                    oid, child_id, self._global_cycle, child_traits,
+                )
+                # v3.11: species divergence check
+                self._population.check_speciation(child_id, oid)
+                # v3.12: novelty metric
+                child_genome_obj = Genome.from_dict(child.get("genome", {}))
+                novelty = self._record_novelty(parent_genome, child_genome_obj)
+                spawned.append(child)
+                self._life_log.append_event(
+                    event_type="stability_reproduction",
+                    payload={
+                        "parent_id": oid,
+                        "child_id": child_id,
+                        "cycle": self._global_cycle,
+                        "pool_fraction": round(pool_frac, 4),
+                        "parent_fitness": round(fitness, 4),
+                        "novelty": novelty,
+                    },
+                )
+                self._logger.info(
+                    "[STABILITY-REPRO] %s → %s at cycle %d (pool=%.1f%%, fitness=%.4f)",
+                    oid, child_id, self._global_cycle, pool_frac * 100, fitness,
+                )
+
+        return spawned
+
+    # ------------------------------------------------------------------
+    # v3.16: Lone Survivor Reproduction
+    # ------------------------------------------------------------------
+
+    def lone_survivor_reproduction(self) -> Optional[Dict[str, Any]]:
+        """v3.16: Prevent total extinction — if pop == 1 and pool is healthy,
+        auto-trigger reproduction with a small probability per cycle.
+
+        Conditions:
+        - Population size == 1
+        - Pool fraction ≥ ``lone_survivor_pool_fraction`` (default 70%)
+        - Random probability per cycle (default 10%)
+
+        Returns spawn record or None.
+        """
+        # v3.17: Sync tick so birth-lock / idempotency guards work
+        self._population.set_tick(self._global_cycle)
+        if self._population.size != 1:
+            return None
+
+        cfg = self._environment.config
+        if self._environment.pool_fraction < cfg.lone_survivor_pool_fraction:
+            return None
+
+        # v3.18: Probability scales with resource pool level
+        effective_prob = cfg.lone_survivor_repro_probability * self._environment.pool_fraction
+        if random.random() > effective_prob:
+            return None
+
+        # The lone survivor reproduces
+        survivor_id = self._population.member_ids[0]
+        member = self._population.get(survivor_id)
+        if not member:
+            return None
+
+        # v3.18: Energy gate for lone-survivor reproduction
+        survivor_energy = member.get("energy", 0.0)
+        if survivor_energy < cfg.repro_energy_min_lone_survivor:
+            return None
+
+        genome_data = member.get("genome", {})
+        parent_genome = Genome.from_dict(genome_data)
+        evo = member.get("evolution_count", 0)
+
+        child = self._population.spawn_child(
+            parent_genome, parent_evolution=evo, parent_id=survivor_id,
+        )
+        if not child:
+            return None
+
+        # v3.18: Deduct reproduction energy cost from parent
+        self._population.deduct_energy(survivor_id, cfg.repro_energy_cost)
+
+        child_id = child["id"]
+        child_traits = child.get("genome", {}).get("traits", {})
+        self._evolution_tracker.register_organism(
+            child_id, parent_id=survivor_id, traits=child_traits,
+            cycle=self._global_cycle,
+        )
+        self._evolution_tracker.record_reproduction(
+            survivor_id, child_id, self._global_cycle, child_traits,
+        )
+        # v3.11: species divergence check
+        self._population.check_speciation(child_id, survivor_id)
+        # v3.12: novelty metric
+        child_genome_obj = Genome.from_dict(child.get("genome", {}))
+        novelty = self._record_novelty(parent_genome, child_genome_obj)
+        self._life_log.append_event(
+            event_type="lone_survivor_reproduction",
+            payload={
+                "parent_id": survivor_id,
+                "child_id": child_id,
+                "cycle": self._global_cycle,
+                "pool_fraction": round(self._environment.pool_fraction, 4),
+                "novelty": novelty,
+            },
+        )
+        self._logger.warning(
+            "[LONE-SURVIVOR] %s → %s at cycle %d (pop=1, pool=%.1f%%)",
+            survivor_id, child_id, self._global_cycle,
+            self._environment.pool_fraction * 100,
+        )
+        return child
+
+    # ------------------------------------------------------------------
+    # Rare reproduction (v3.10)
+    # ------------------------------------------------------------------
+
+    def rare_reproduction_cycle(self) -> Optional[Dict[str, Any]]:
+        """Rare, heavily-gated reproduction path.
+
+        Rules
+        -----
+        * Evaluated every RARE_REPRO_CYCLE_INTERVAL cycles (500).
+        * 5 % random chance gate.
+        * Hard population cap of RARE_REPRO_POP_CAP (50).
+        * Parent eligibility: energy >= 0.65, fitness >= 0.50,
+          stagnation < 0.90 (estimated from fitness_history).
+        * Cost: parent.energy -= 0.30; child.energy = 0.50.
+        * Cooldown: 2000 cycles between births per parent.
+        * Only ONE child per invocation (no loops).
+        """
+        # v3.17: Sync tick so birth-lock / idempotency guards work
+        self._population.set_tick(self._global_cycle)
+        # ── Gate 1: cycle interval ────────────────────────────────────
+        if self._global_cycle % RARE_REPRO_CYCLE_INTERVAL != 0:
+            return None
+
+        # ── Gate 2: random chance, v3.18: scales with resource pool ────
+        effective_chance = RARE_REPRO_CHANCE * self._environment.pool_fraction
+        if random.random() >= effective_chance:
+            return None
+
+        # ── Gate 3: hard population cap ───────────────────────────────
+        if self._population.size >= RARE_REPRO_POP_CAP:
+            self._logger.debug(
+                "[RARE-REPRO] Pop %d >= cap %d — skipped",
+                self._population.size, RARE_REPRO_POP_CAP,
+            )
+            return None
+
+        # ── Find one eligible parent ──────────────────────────────────
+        candidates = list(self._population.member_ids)
+        random.shuffle(candidates)
+
+        for cid in candidates:
+            member = self._population.get(cid)
+            if member is None or not member.get("alive", True):
+                continue
+            if member.get("state") == "dormant":
+                continue
+
+            energy = member.get("energy", 0.0)
+            if energy < RARE_REPRO_ENERGY_MIN:
+                continue
+
+            # Fitness: use latest entry in fitness_history
+            fh = member.get("fitness_history", [])
+            fitness = fh[-1] if fh else 0.0
+            if fitness < RARE_REPRO_FITNESS_MIN:
+                continue
+
+            # Stagnation estimate from fitness_history
+            stagnation = self._estimate_stagnation(fh)
+            if stagnation >= RARE_REPRO_STAGNATION_MAX:
+                continue
+
+            # Cooldown check
+            last_birth = self._last_birth_cycle.get(cid, -RARE_REPRO_COOLDOWN_CYCLES)
+            if self._global_cycle - last_birth < RARE_REPRO_COOLDOWN_CYCLES:
+                continue
+
+            # ── Re-check population cap before committing ─────────────
+            if self._population.size >= RARE_REPRO_POP_CAP:
+                return None
+
+            # ── Reproduce ─────────────────────────────────────────────
+            parent_genome_data = member.get("genome", {})
+            parent_genome = Genome.from_dict(parent_genome_data)
+
+            parent_gen = member.get("generation_id", 0)
+            child = self._population.spawn_child(
+                parent_genome=parent_genome,
+                parent_evolution=member.get("evolution_count", 0),
+                parent_id=cid,
+                mutation_variance=RARE_REPRO_MUTATION_RATE,
+            )
+            if child is None:
+                return None  # cap enforced inside spawn_child
+
+            child_id = child["id"]
+
+            # v3.11: species divergence check
+            self._population.check_speciation(child_id, cid)
+
+            # v3.12: novelty metric
+            child_genome_obj = Genome.from_dict(child.get("genome", {}))
+            novelty = self._record_novelty(parent_genome, child_genome_obj)
+
+            # Override child energy to spec
+            self._population.update_energy(child_id, RARE_REPRO_CHILD_ENERGY)
+
+            # Deduct parent energy cost
+            new_parent_energy = round(energy - RARE_REPRO_ENERGY_COST, 6)
+            self._population.update_energy(cid, max(new_parent_energy, 0.0))
+
+            # Record cooldown
+            self._last_birth_cycle[cid] = self._global_cycle
+
+            # Evolution tracker entries
+            child_traits = child.get("genome", {}).get("traits", {})
+            self._evolution_tracker.register_organism(
+                child_id, parent_id=cid, traits=child_traits,
+                cycle=self._global_cycle,
+            )
+            self._evolution_tracker.record_reproduction(
+                cid, child_id, self._global_cycle, child_traits,
+            )
+
+            # VITAL life-log entry
+            self._life_log.append_event(
+                event_type="rare_reproduction",
+                payload={
+                    "parent_id": cid,
+                    "child_id": child_id,
+                    "cycle": self._global_cycle,
+                    "parent_energy_after": round(max(new_parent_energy, 0.0), 4),
+                    "child_energy": RARE_REPRO_CHILD_ENERGY,
+                    "parent_fitness": round(fitness, 4),
+                    "stagnation_estimate": round(stagnation, 4),
+                    "population_size": self._population.size,
+                    "novelty": novelty,
+                },
+            )
+
+            self._logger.info(
+                "[RARE-REPRO] %s → %s at cycle %d "
+                "(fit=%.3f, stag=%.3f, pop=%d)",
+                cid, child_id, self._global_cycle,
+                fitness, stagnation, self._population.size,
+            )
+            return child  # ONE child only — exit immediately
+
+        return None  # no eligible parent found
+
+    @staticmethod
+    def _estimate_stagnation(fitness_history: list) -> float:
+        """Return 0–1 stagnation estimate from a fitness history.
+
+        Uses the last 20 entries.  If the range (max − min) is tiny the
+        organism is stagnating (result → 1.0).  With fewer than 2 data
+        points we assume zero stagnation (benefit of the doubt).
+        """
+        if len(fitness_history) < 2:
+            return 0.0
+        window = fitness_history[-20:]
+        hi, lo = max(window), min(window)
+        spread = hi - lo
+        # Map spread → stagnation: spread=0 → 1.0, spread>=0.10 → 0.0
+        return max(0.0, min(1.0, 1.0 - spread / 0.10))
 
     # ------------------------------------------------------------------
     # Stimulation (lightweight external poke)

@@ -163,6 +163,7 @@ class GenesisVault:
         genesis_genome = self.create_genome_from_seed()
 
         # Temporarily raise cap for reseed (extinction recovery must succeed)
+        # v3.13: Still respect ABSOLUTE_POPULATION_CAP via the setter clamp
         old_cap = population.max_population
         population.max_population = max(old_cap, population.size + 5)
 

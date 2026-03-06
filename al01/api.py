@@ -119,6 +119,591 @@ def _require_api_key(
 
 
 # ---------------------------------------------------------------------------
+# Visual organism dashboard — static HTML served at /visual
+# ---------------------------------------------------------------------------
+
+_VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AL-01 — Visual Organism</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0d1117;color:#c9d1d9;font-family:'Courier New',Courier,monospace;overflow:hidden}
+  #header{position:fixed;top:0;left:0;right:0;z-index:10;background:rgba(13,17,23,0.92);
+          padding:.6rem 1.2rem;display:flex;align-items:center;gap:1rem;
+          border-bottom:1px solid #21262d;backdrop-filter:blur(8px)}
+  #header h1{color:#58a6ff;font-size:1rem;white-space:nowrap}
+  #header .meta{color:#8b949e;font-size:.7rem;display:flex;gap:1rem}
+  #header .meta span{white-space:nowrap}
+  #shock-banner{display:none;position:fixed;top:42px;left:0;right:0;z-index:9;
+                background:rgba(248,81,73,0.15);color:#f85149;text-align:center;
+                font-size:.75rem;padding:.3rem;border-bottom:1px solid #f8514950}
+  canvas{display:block;width:100vw;height:100vh}
+  #tooltip{display:none;position:fixed;z-index:20;background:#161b22ee;
+           border:1px solid #30363d;border-radius:10px;padding:.7rem .9rem;
+           font-size:.75rem;line-height:1.5;max-width:280px;pointer-events:none;
+           box-shadow:0 6px 24px rgba(0,0,0,0.5);transition:opacity .15s ease}
+  #tooltip .tt-id{color:#58a6ff;font-weight:bold;font-size:.8rem}
+  #tooltip .tt-nick{color:#e3b341;font-size:.7rem}
+  #tooltip .tt-strategy{color:#d2a8ff}
+  #tooltip .tt-fitness{color:#3fb950}
+  #tooltip .tt-energy{color:#f0883e}
+  #tooltip .tt-evo{color:#a5d6ff}
+  #tooltip .tt-row{display:flex;justify-content:space-between;gap:1rem}
+  #tooltip .tt-label{color:#8b949e}
+  #tooltip .tt-swatch{display:inline-block;width:10px;height:10px;border-radius:50%;
+                       vertical-align:middle;margin-right:4px}
+  #legend{position:fixed;bottom:12px;right:12px;z-index:10;background:rgba(22,27,34,0.9);
+          border:1px solid #21262d;border-radius:8px;padding:.5rem .8rem;font-size:.65rem;
+          color:#8b949e;line-height:1.7;backdrop-filter:blur(8px)}
+  #legend b{color:#c9d1d9}
+  #back-link{position:fixed;bottom:12px;left:12px;z-index:10;color:#58a6ff;
+             font-size:.7rem;text-decoration:none}
+  #back-link:hover{text-decoration:underline}
+  #pool-bar{position:fixed;bottom:42px;left:12px;z-index:10;width:120px;height:6px;
+            background:#21262d;border-radius:3px;overflow:hidden}
+  #pool-fill{height:100%;border-radius:3px;transition:width .6s ease,background .6s ease}
+  #pool-label{position:fixed;bottom:50px;left:12px;z-index:10;font-size:.6rem;color:#8b949e}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>AL-01 Visual</h1>
+  <div class="meta">
+    <span id="pop-count">—</span>
+    <span id="avg-fitness">—</span>
+    <span id="pool-stat">—</span>
+    <span id="update-ts">—</span>
+  </div>
+</div>
+<div id="shock-banner">⚡ SHOCK EVENT ACTIVE — resilience favoured</div>
+<canvas id="canvas"></canvas>
+<div id="tooltip"></div>
+<div id="legend">
+  <b>Circle Size</b> = Fitness &nbsp; <b>Pulse</b> = Energy<br>
+  <b>Color</b> = <span style="color:#ff6b6b">Adapt</span> /
+                 <span style="color:#6bff6b">Efficiency</span> /
+                 <span style="color:#6b6bff">Resilience</span><br>
+  <b>Glow</b> = Awareness &nbsp; <b>Rings</b> = Evolutions<br>
+  <b>Flicker</b> = Low Energy &nbsp; <b>👑</b> = Top 3 Fitness<br>
+  <b>⬡</b> = Parent AL-01
+</div>
+<a id="back-link" href="/">← Dashboard</a>
+<div id="pool-label">🌍 Pool</div>
+<div id="pool-bar"><div id="pool-fill"></div></div>
+
+<script>
+(function(){
+  /* ================= CONSTANTS ================= */
+  const POLL_MS = 3000;
+  const BASE_R = 10;
+  const SCALE_R = 40;
+  const PADDING = 60;
+  const GLOW_THRESHOLD = 0.5;
+  const PULSE_INTENSITY = 0.06;
+  const FLICKER_THRESHOLD = 0.15;
+  const EVO_RING_INTERVAL = 250;
+  const MAX_EVO_RINGS = 3;
+  const LEADER_COUNT = 3;
+  const HOVER_REPULSE_RADIUS = 120;
+  const HOVER_REPULSE_FORCE = 30;
+  const AURA_PARTICLE_COUNT = 60;
+
+  /* ================= DOM REFS ================= */
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('tooltip');
+  let organisms = [];
+  let circles = [];
+  let hoveredIdx = -1;
+  let mouseX = -1, mouseY = -1;
+  let dpr = window.devicePixelRatio || 1;
+  let poolFraction = 1.0;
+  let isScarcity = false;
+  let shockActive = false;
+  let leaderIds = new Set();
+  let time = 0;
+
+  /* ================= AURA PARTICLES ================= */
+  let auraParticles = [];
+  function initAura(){
+    auraParticles = [];
+    const W = window.innerWidth, H = window.innerHeight;
+    for(let i = 0; i < AURA_PARTICLE_COUNT; i++){
+      auraParticles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.2 - 0.1,
+        size: 1 + Math.random() * 2.5,
+        alpha: 0.1 + Math.random() * 0.2,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  /* ================= RESIZE ================= */
+  function resize(){
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layoutGrid();
+    if(!auraParticles.length) initAura();
+  }
+  window.addEventListener('resize', resize);
+
+  /* ================= COLOUR HELPERS ================= */
+  function traitColor(t){
+    const r = Math.round(Math.min(1, t.adaptability || 0) * 255);
+    const g = Math.round(Math.min(1, t.energy_efficiency || 0) * 255);
+    const b = Math.round(Math.min(1, t.resilience || 0) * 255);
+    return {r, g, b, str: 'rgb('+r+','+g+','+b+')'};
+  }
+  function dominantTrait(t){
+    const vals = [
+      {name:'adaptability', v: t.adaptability||0},
+      {name:'energy_efficiency', v: t.energy_efficiency||0},
+      {name:'resilience', v: t.resilience||0},
+      {name:'perception', v: t.perception||0},
+      {name:'creativity', v: t.creativity||0}
+    ];
+    vals.sort((a,b)=>b.v - a.v);
+    return vals[0].name;
+  }
+
+  /* ================= GRID LAYOUT ================= */
+  function layoutGrid(){
+    const n = organisms.length;
+    if(!n) return;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const headerH = 50;
+    const availW = W - PADDING * 2;
+    const availH = H - headerH - PADDING * 2;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(n * (availW / availH))));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const cellW = availW / cols;
+    const cellH = availH / rows;
+
+    // Determine top-3 fitness leaders
+    const sorted = organisms.slice().sort((a,b) => (b.fitness||0) - (a.fitness||0));
+    leaderIds = new Set(sorted.slice(0, Math.min(LEADER_COUNT, n)).map(o => o.id));
+
+    for(let i = 0; i < n; i++){
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const tx = PADDING + col * cellW + cellW / 2;
+      const ty = headerH + PADDING + row * cellH + cellH / 2;
+      const o = organisms[i];
+      const r = BASE_R + (o.fitness || 0) * SCALE_R;
+      const c = traitColor(o.traits || {});
+      if(circles[i]){
+        circles[i].targetX = tx;
+        circles[i].targetY = ty;
+        circles[i].targetR = r;
+        circles[i].color = c;
+        circles[i].data = o;
+      } else {
+        circles[i] = {x: tx, y: ty, targetX: tx, targetY: ty,
+                       r: r, targetR: r, color: c, data: o,
+                       shimmerPhase: Math.random() * Math.PI * 2,
+                       crownAngle: Math.random() * Math.PI * 2};
+      }
+    }
+    circles.length = n;
+  }
+
+  /* ================= ANIMATION HELPERS ================= */
+  function lerp(a, b, t){ return a + (b - a) * t; }
+
+  /* Shimmer colour based on dominant trait */
+  function shimmerColor(trait, phase){
+    const t = Math.sin(phase) * 0.5 + 0.5;
+    switch(trait){
+      case 'adaptability':    return 'rgba(255,'+ Math.round(80+t*100) +',80,0.18)';
+      case 'energy_efficiency': return 'rgba(80,'+Math.round(200+t*55)+',80,0.18)';
+      case 'resilience':      return 'rgba(80,80,'+Math.round(200+t*55)+',0.18)';
+      case 'perception':      return 'rgba('+Math.round(180+t*75)+',180,'+Math.round(220+t*35)+',0.15)';
+      case 'creativity':      return 'rgba('+Math.round(220+t*35)+','+Math.round(160+t*60)+',255,0.15)';
+      default:                return 'rgba(150,150,150,0.1)';
+    }
+  }
+
+  /* ================= DRAW AURA FIELD ================= */
+  function drawAura(W, H, dt){
+    // Background tint based on pool health
+    const health = poolFraction;
+    const bgR = Math.round(lerp(30, 8, health));
+    const bgG = Math.round(lerp(10, 14, health));
+    const bgB = Math.round(lerp(10, 20, health));
+    ctx.fillStyle = 'rgb('+bgR+','+bgG+','+bgB+')';
+    ctx.fillRect(0, 0, W, H);
+
+    // Ambient glow in centre proportional to avg fitness
+    if(organisms.length){
+      const avgFit = organisms.reduce((s,o)=>s+(o.fitness||0),0)/organisms.length;
+      const glowR = Math.min(200, W * 0.4);
+      const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, glowR);
+      const intensity = Math.min(0.08, avgFit * 0.1);
+      grad.addColorStop(0, 'rgba(88,166,255,'+intensity+')');
+      grad.addColorStop(1, 'rgba(88,166,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Scarcity warning vignette
+    if(isScarcity){
+      const vignette = ctx.createRadialGradient(W/2, H/2, W*0.2, W/2, H/2, W*0.7);
+      const pulse = 0.06 + Math.sin(time * 1.5) * 0.03;
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, 'rgba(248,81,73,'+pulse+')');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Floating particles
+    for(let p of auraParticles){
+      p.x += p.vx; p.y += p.vy;
+      if(p.x < 0) p.x = W;
+      if(p.x > W) p.x = 0;
+      if(p.y < 0) p.y = H;
+      if(p.y > H) p.y = 0;
+      const flicker = 0.5 + 0.5 * Math.sin(time * 2 + p.phase);
+      const a = p.alpha * flicker * health;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = isScarcity
+        ? 'rgba(248,81,73,' + (a * 0.6) + ')'
+        : 'rgba(88,166,255,' + a + ')';
+      ctx.fill();
+    }
+  }
+
+  /* ================= DRAW EVOLUTION RINGS ================= */
+  function drawEvoRings(cx, cy, baseR, evoCount, dt){
+    const ringCount = Math.min(MAX_EVO_RINGS, Math.floor(evoCount / EVO_RING_INTERVAL));
+    if(ringCount <= 0) return;
+    for(let i = 0; i < ringCount; i++){
+      const ringR = baseR + 6 + i * 5;
+      const rot = time * (0.3 + i * 0.15) * (i % 2 === 0 ? 1 : -1);
+      const dashLen = Math.PI * 2 * ringR * 0.06;
+      const gapLen = dashLen * 1.5;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rot);
+      ctx.setLineDash([dashLen, gapLen]);
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+      const alpha = 0.3 + i * 0.12;
+      const colors = ['#58a6ff','#d2a8ff','#3fb950'];
+      ctx.strokeStyle = colors[i % 3];
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+
+  /* ================= DRAW LEADER CROWN ================= */
+  function drawCrown(cx, cy, baseR, rank, crownAngle){
+    const orbitR = baseR + 10;
+    const particleCount = 5 - rank;  // 1st=5, 2nd=4, 3rd=3
+    const colors = ['#ffd700','#c0c0c0','#cd7f32'];
+    const col = colors[rank] || '#ffd700';
+
+    // Golden ring
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, baseR + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.5 + Math.sin(time * 2) * 0.15;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.restore();
+
+    // Orbiting particles
+    for(let i = 0; i < particleCount; i++){
+      const angle = crownAngle + (Math.PI * 2 / particleCount) * i;
+      const px = cx + Math.cos(angle) * orbitR;
+      const py = cy + Math.sin(angle) * orbitR;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.7 + Math.sin(time * 3 + i) * 0.3;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* ================= MAIN DRAW LOOP ================= */
+  let lastTime = performance.now();
+
+  function draw(now){
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    time += dt;
+
+    const W = window.innerWidth, H = window.innerHeight;
+
+    // 6. Environmental Aura Field
+    drawAura(W, H, dt);
+
+    // Build leader rank map
+    const sorted = circles.slice().filter(c=>c.data.alive!==false)
+      .sort((a,b)=>(b.data.fitness||0)-(a.data.fitness||0));
+    const leaderRank = {};
+    for(let i = 0; i < Math.min(LEADER_COUNT, sorted.length); i++){
+      leaderRank[sorted[i].data.id] = i;
+    }
+
+    for(let i = 0; i < circles.length; i++){
+      const c = circles[i];
+      const o = c.data;
+
+      // 7. Micro-Interaction Physics — hover repulsion
+      if(hoveredIdx >= 0 && i !== hoveredIdx){
+        const hc = circles[hoveredIdx];
+        const dx = c.targetX - hc.x;
+        const dy = c.targetY - hc.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist < HOVER_REPULSE_RADIUS && dist > 0){
+          const force = (1 - dist / HOVER_REPULSE_RADIUS) * HOVER_REPULSE_FORCE;
+          const nx = dx / dist, ny = dy / dist;
+          c.x += nx * force * dt * 2;
+          c.y += ny * force * dt * 2;
+        }
+      }
+
+      // Smooth interpolation
+      c.x = lerp(c.x, c.targetX, 0.08);
+      c.y = lerp(c.y, c.targetY, 0.08);
+      c.r = lerp(c.r, c.targetR, 0.1);
+
+      const energy = o.energy || 0;
+      const evoCount = o.evolution_count || 0;
+      const opacity = Math.max(0.25, 1.0 - (o.stagnation || 0) * 0.6);
+
+      // 1. Energy-Based Pulse Animation
+      const energyFactor = 0.8 + energy * 2.2;
+      const pulse = 1.0 + PULSE_INTENSITY * Math.sin(time * energyFactor);
+      let drawR = Math.max(3, c.r * pulse);
+
+      // 4. Energy Stress Flicker
+      let flickerOffsetX = 0, flickerOffsetY = 0, flickerAlpha = 1.0;
+      if(energy < FLICKER_THRESHOLD && energy > 0){
+        const severity = 1 - (energy / FLICKER_THRESHOLD);
+        flickerOffsetX = (Math.random() - 0.5) * severity * 3;
+        flickerOffsetY = (Math.random() - 0.5) * severity * 3;
+        flickerAlpha = 0.7 + Math.random() * 0.3 * (1 - severity * 0.4);
+      }
+
+      const cx = c.x + flickerOffsetX;
+      const cy = c.y + flickerOffsetY;
+
+      ctx.save();
+      ctx.globalAlpha = opacity * flickerAlpha;
+
+      // 2. Awareness Halo System
+      const awareness = o.awareness || 0;
+      if(awareness > GLOW_THRESHOLD){
+        const haloStrength = (awareness - GLOW_THRESHOLD) / (1 - GLOW_THRESHOLD);
+        const haloR = drawR + 8 + haloStrength * 18;
+        const grad = ctx.createRadialGradient(cx, cy, drawR * 0.8, cx, cy, haloR);
+        grad.addColorStop(0, 'rgba('+c.color.r+','+c.color.g+','+c.color.b+','+(0.25 * haloStrength)+')');
+        grad.addColorStop(0.5, 'rgba('+c.color.r+','+c.color.g+','+c.color.b+','+(0.08 * haloStrength)+')');
+        grad.addColorStop(1, 'rgba('+c.color.r+','+c.color.g+','+c.color.b+',0)');
+        ctx.beginPath();
+        ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      // 3. Evolution Rings
+      drawEvoRings(cx, cy, drawR, evoCount, dt);
+
+      // 5. Trait Shimmer Layer
+      const dom = dominantTrait(o.traits || {});
+      c.shimmerPhase += dt * 1.8;
+      const shimGrad = ctx.createRadialGradient(
+        cx - drawR * 0.3, cy - drawR * 0.3, 0,
+        cx, cy, drawR
+      );
+      shimGrad.addColorStop(0, shimmerColor(dom, c.shimmerPhase));
+      shimGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
+      ctx.fillStyle = shimGrad;
+      ctx.fill();
+
+      // Main circle body
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
+      ctx.fillStyle = c.color.str;
+      ctx.fill();
+
+      // Inner highlight (specular)
+      const hlGrad = ctx.createRadialGradient(
+        cx - drawR * 0.25, cy - drawR * 0.25, 0,
+        cx, cy, drawR
+      );
+      hlGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+      hlGrad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
+      hlGrad.addColorStop(1, 'rgba(0,0,0,0.1)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
+      ctx.fillStyle = hlGrad;
+      ctx.fill();
+
+      // Parent marker — hexagon outline
+      if(o.is_parent){
+        ctx.strokeStyle = '#f0f6fc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const hr = drawR + 4;
+        for(let s = 0; s < 6; s++){
+          const a = Math.PI / 3 * s - Math.PI / 2;
+          const px = cx + hr * Math.cos(a);
+          const py = cy + hr * Math.sin(a);
+          if(s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // 8. Leader Crown System
+      if(leaderRank[o.id] !== undefined){
+        c.crownAngle += dt * (1.5 + leaderRank[o.id] * 0.3);
+        drawCrown(cx, cy, drawR, leaderRank[o.id], c.crownAngle);
+      }
+
+      // Hover highlight
+      if(i === hoveredIdx){
+        ctx.strokeStyle = '#58a6ff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.8 + Math.sin(time * 4) * 0.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, drawR + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // Label for parent
+      if(o.is_parent){
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '9px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('AL-01', cx, cy + drawR + 14);
+      }
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  /* ================= HOVER / TOOLTIP ================= */
+  canvas.addEventListener('mousemove', function(e){
+    mouseX = e.clientX; mouseY = e.clientY;
+    hoveredIdx = -1;
+    for(let i = circles.length - 1; i >= 0; i--){
+      const c = circles[i];
+      const dx = mouseX - c.x, dy = mouseY - c.y;
+      if(dx*dx + dy*dy <= (c.r + 6) * (c.r + 6)){
+        hoveredIdx = i;
+        break;
+      }
+    }
+    if(hoveredIdx >= 0){
+      const o = circles[hoveredIdx].data;
+      const t = o.traits || {};
+      const col = traitColor(t);
+      const evoRings = Math.min(MAX_EVO_RINGS, Math.floor((o.evolution_count||0) / EVO_RING_INTERVAL));
+      let h = '<div class="tt-id">' + o.id + '</div>';
+      if(o.nickname) h += '<div class="tt-nick">' + o.nickname + '</div>';
+      h += '<div class="tt-strategy">Strategy: ' + (o.strategy || '—') + '</div>';
+      h += '<div class="tt-fitness">Fitness: ' + (o.fitness || 0).toFixed(4) + '</div>';
+      h += '<div class="tt-energy">Energy: ' + ((o.energy||0)*100).toFixed(1) + '%</div>';
+      h += '<div class="tt-evo">Evolutions: ' + (o.evolution_count||0) + (evoRings > 0 ? ' ('+evoRings+' ring'+(evoRings>1?'s':'')+')' : '') + '</div>';
+      h += '<hr style="border:0;border-top:1px solid #21262d;margin:.3rem 0">';
+      h += '<div class="tt-row"><span class="tt-label">Adaptability</span><span style="color:#ff6b6b">' + (t.adaptability||0).toFixed(3) + '</span></div>';
+      h += '<div class="tt-row"><span class="tt-label">Efficiency</span><span style="color:#6bff6b">' + (t.energy_efficiency||0).toFixed(3) + '</span></div>';
+      h += '<div class="tt-row"><span class="tt-label">Resilience</span><span style="color:#6b6bff">' + (t.resilience||0).toFixed(3) + '</span></div>';
+      h += '<div class="tt-row"><span class="tt-label">Perception</span><span>' + (t.perception||0).toFixed(3) + '</span></div>';
+      h += '<div class="tt-row"><span class="tt-label">Creativity</span><span>' + (t.creativity||0).toFixed(3) + '</span></div>';
+      h += '<hr style="border:0;border-top:1px solid #21262d;margin:.3rem 0">';
+      h += '<div class="tt-row"><span class="tt-label">Awareness</span><span>' + (o.awareness||0).toFixed(3) + '</span></div>';
+      h += '<div class="tt-row"><span class="tt-label">Stagnation</span><span>' + (o.stagnation||0).toFixed(3) + '</span></div>';
+      if(leaderIds.has(o.id)) h += '<div style="margin-top:.3rem;color:#ffd700">👑 Top Fitness</div>';
+      h += '<div style="margin-top:.3rem"><span class="tt-swatch" style="background:'+col.str+'"></span> rgb(' + col.r + ',' + col.g + ',' + col.b + ')</div>';
+      tooltip.innerHTML = h;
+      tooltip.style.display = 'block';
+      tooltip.style.opacity = '1';
+      let tx = e.clientX + 14, ty = e.clientY + 14;
+      if(tx + 290 > window.innerWidth) tx = e.clientX - 290;
+      if(ty + 300 > window.innerHeight) ty = e.clientY - 300;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
+    } else {
+      tooltip.style.opacity = '0';
+      setTimeout(()=>{ if(hoveredIdx < 0) tooltip.style.display='none'; }, 150);
+    }
+  });
+  canvas.addEventListener('mouseleave', function(){
+    hoveredIdx = -1; mouseX = -1; mouseY = -1;
+    tooltip.style.opacity = '0';
+    setTimeout(()=>tooltip.style.display='none', 150);
+  });
+
+  /* ================= DATA POLLING ================= */
+  async function poll(){
+    try{
+      const resp = await fetch('/api/organisms');
+      const data = await resp.json();
+      organisms = data.organisms || [];
+      poolFraction = data.pool_fraction != null ? data.pool_fraction : 1.0;
+      isScarcity = !!data.is_scarcity;
+      shockActive = !!data.shock_active;
+
+      document.getElementById('pop-count').textContent = 'Pop: ' + data.population_size;
+      if(organisms.length){
+        const avg = organisms.reduce((s,o)=>s+o.fitness, 0) / organisms.length;
+        document.getElementById('avg-fitness').textContent = 'Avg Fitness: ' + avg.toFixed(4);
+      }
+      document.getElementById('pool-stat').textContent = 'Pool: ' + (poolFraction*100).toFixed(0) + '%';
+      const ts = data.timestamp ? data.timestamp.substring(11,19) : '';
+      document.getElementById('update-ts').textContent = ts;
+
+      const banner = document.getElementById('shock-banner');
+      banner.style.display = shockActive ? 'block' : 'none';
+
+      // Pool bar
+      const fill = document.getElementById('pool-fill');
+      fill.style.width = (poolFraction*100) + '%';
+      fill.style.background = isScarcity ? '#f85149' : '#3fb950';
+
+      layoutGrid();
+    } catch(err){
+      console.warn('poll error:', err);
+    }
+  }
+
+  /* ================= BOOTSTRAP ================= */
+  resize();
+  poll().then(() => { requestAnimationFrame(draw); });
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>"""
+
+
+# ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
 
@@ -382,6 +967,14 @@ def create_app(organism: Organism, api_key: Optional[str] = None) -> FastAPI:
         <tr><td>exploration mode</td><td>{exploration_icon} {"active" if ab.get("exploration_mode") else "off"}</td></tr>
       </table>
 
+      <h2 style="margin-top:.6rem">\U0001F30D Resource Pool</h2>
+      <table>
+        <tr><td>pool</td><td>{_organism.environment.resource_pool:.1f} / {_organism.environment.config.resource_pool_max:.0f}</td></tr>
+        <tr><td>pool %</td><td><div class="bar-bg"><div class="bar-fg" style="width:{_organism.environment.pool_fraction*100:.0f}%;background:{'#f85149' if _organism.environment.is_scarcity_pressure else '#3fb950'}"></div></div></td></tr>
+        <tr><td>scarcity pressure</td><td style="color:{'#f85149' if _organism.environment.is_scarcity_pressure else '#3fb950'}">{"⚠️ active (severity " + f"{_organism.environment.scarcity_severity:.0%}" + ")" if _organism.environment.is_scarcity_pressure else "✓ normal"}</td></tr>
+        <tr><td>metabolic cost</td><td>{_organism.environment.effective_metabolic_cost():.2f}</td></tr>
+      </table>
+
       <form class="stim-form" method="post" action="/stimulate?api_key={_api_key or ''}&_redirect=1">
         <button class="btn" type="submit">⚡ Stimulate</button>
       </form>
@@ -464,6 +1057,10 @@ def create_app(organism: Organism, api_key: Optional[str] = None) -> FastAPI:
         <tr><td><a href="/export/mutations.csv?api_key={_api_key or ''}">🧬 mutations.csv</a></td><td>Mutation events</td></tr>
         <tr><td><a href="/export/lineage.csv?api_key={_api_key or ''}">🌳 lineage.csv</a></td><td>Genealogy data</td></tr>
       </table>
+      <h2 style="margin-top:.6rem">Visual</h2>
+      <table>
+        <tr><td><a href="/visual">🔬 Organism Visualizer</a></td><td>Live genome-colored circles</td></tr>
+      </table>
     </div>
   </div>
 
@@ -528,6 +1125,119 @@ if (historyData.length > 0) {{
 </script>
 </body>
 </html>"""
+        return HTMLResponse(content=html)
+
+    # --- GET /api/organisms (public JSON — visual dashboard data) -----
+    @app.get("/api/organisms")
+    def api_organisms() -> Dict[str, Any]:
+        """Public JSON feed for the visual organism dashboard.
+
+        Returns per-organism data optimised for rendering:
+        id, fitness, traits (adaptability/energy_efficiency/resilience),
+        strategy, alive, nickname, awareness proxy, stagnation proxy.
+        """
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        pop = _organism.population
+        members = pop.get_all()
+        ba = _organism.behavior_analyzer
+
+        organisms = []
+        for m in members:
+            mid = m.get("id", "?")
+            genome = m.get("genome", {})
+            traits = genome.get("traits", {})
+            fitness = genome.get("fitness", 0.0)
+            alive = m.get("alive", True)
+            nickname = m.get("nickname")
+
+            # Strategy from behavior profile
+            profile = ba.get_or_create_profile(mid)
+            classification = profile.classify_strategy()
+            strategy = classification.get("strategy", "neutral")
+
+            # Awareness proxy: for parent use autonomy awareness,
+            # for children approximate from fitness history stability
+            awareness = 0.0
+            if mid == "AL-01":
+                awareness = float(dict(_organism.state).get("awareness", 0.0))
+            else:
+                fh = m.get("fitness_history", [])
+                if len(fh) >= 3:
+                    recent = [float(f) if isinstance(f, (int, float)) else float(f.get("fitness", 0)) for f in fh[-5:]]
+                    if recent:
+                        avg = sum(recent) / len(recent)
+                        awareness = min(1.0, avg)
+
+            # Stagnation proxy: low fitness variance in recent history
+            stagnation = 0.0
+            fh = m.get("fitness_history", [])
+            if len(fh) >= 5:
+                recent_f = [float(f) if isinstance(f, (int, float)) else float(f.get("fitness", 0)) for f in fh[-10:]]
+                if len(recent_f) >= 2:
+                    import statistics as _st
+                    var = _st.variance(recent_f)
+                    # Low variance → high stagnation
+                    stagnation = max(0.0, 1.0 - var * 100)
+
+            # Energy: parent uses _state, children have member-level energy
+            if mid == "AL-01":
+                energy = float(dict(_organism.state).get("energy", 1.0))
+            else:
+                energy = float(m.get("energy", 0.8))
+
+            # Evolution count
+            if mid == "AL-01":
+                evo_count = int(dict(_organism.state).get("evolution_count", 0))
+            else:
+                evo_count = int(m.get("evolution_count", 0))
+
+            organisms.append({
+                "id": mid,
+                "fitness": round(fitness, 6),
+                "traits": {
+                    "adaptability": round(traits.get("adaptability", 0.0), 4),
+                    "energy_efficiency": round(traits.get("energy_efficiency", 0.0), 4),
+                    "resilience": round(traits.get("resilience", 0.0), 4),
+                    "perception": round(traits.get("perception", 0.0), 4),
+                    "creativity": round(traits.get("creativity", 0.0), 4),
+                },
+                "strategy": strategy,
+                "alive": alive,
+                "nickname": nickname,
+                "awareness": round(awareness, 4),
+                "stagnation": round(stagnation, 4),
+                "is_parent": mid == "AL-01",
+                "energy": round(energy, 4),
+                "evolution_count": evo_count,
+            })
+
+        # Environment shock status
+        env = _organism.environment
+        shock_active = env.is_shock_active if hasattr(env, "is_shock_active") else False
+
+        # Resource pool info for environmental aura
+        pool_fraction = env.pool_fraction if hasattr(env, "pool_fraction") else 1.0
+        is_scarcity = env.is_scarcity_pressure if hasattr(env, "is_scarcity_pressure") else False
+
+        return {
+            "organisms": organisms,
+            "population_size": len(organisms),
+            "shock_active": shock_active,
+            "pool_fraction": round(pool_fraction, 4),
+            "is_scarcity": is_scarcity,
+            "named_events": env.active_named_event_names if hasattr(env, "active_named_event_names") else [],
+            "recent_births": _organism.last_birth_events(n=5) if _organism else [],
+            "novelty_rate": _organism.novelty_rate if _organism else 0.0,
+            "diversity_index": round(_organism.population_diversity_index(), 4) if _organism else 0.0,
+            "timestamp": _utc_now(),
+        }
+
+    # --- GET /visual (public HTML — organism visualization) -----------
+    @app.get("/visual", response_class=HTMLResponse)
+    def visual_dashboard() -> HTMLResponse:
+        """Visual organism dashboard — renders each organism as a genome-colored circle."""
+        html = _VISUAL_DASHBOARD_HTML
         return HTMLResponse(content=html)
 
     # --- POST /stimulate ----------------------------------------------
@@ -613,6 +1323,10 @@ if (historyData.length > 0) {{
             "generations_present": pop.generations_present,
             "champion": pop.champion(),
             "genome_diversity": pop.diversity_metrics(),
+            "min_population_floor": pop.min_population_floor,
+            "hardcore_extinction_mode": pop.hardcore_extinction_mode,
+            "dormant_count": pop.dormant_count,
+            "living_or_dormant_count": pop.living_or_dormant_count,
             "timestamp": _utc_now(),
         }
 
@@ -1179,6 +1893,143 @@ if (historyData.length > 0) {{
         }
 
     # ------------------------------------------------------------------
+    # v3.11: Lineage Tree, Species, Ecosystem Health, Fossils, Events
+    # ------------------------------------------------------------------
+
+    @app.get("/lineage/tree", dependencies=[Depends(_require_api_key)])
+    def lineage_tree() -> Dict[str, Any]:
+        """Return nested family-tree structure for all organisms."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        return _organism.evolution_tracker.build_family_tree()
+
+    @app.get("/lineage/tree/ascii", dependencies=[Depends(_require_api_key)])
+    def lineage_tree_ascii() -> Dict[str, str]:
+        """Return ASCII-rendered family tree."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        return {"tree": _organism.evolution_tracker.render_tree_ascii()}
+
+    @app.get("/lineage/{organism_id}/ancestors", dependencies=[Depends(_require_api_key)])
+    def lineage_ancestors(organism_id: str) -> Dict[str, Any]:
+        """Return ancestor chain from organism to root."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        chain = _organism.evolution_tracker.get_ancestor_chain(organism_id)
+        return {"organism_id": organism_id, "ancestors": chain}
+
+    @app.get("/lineage/{organism_id}/descendants", dependencies=[Depends(_require_api_key)])
+    def lineage_descendants(organism_id: str) -> Dict[str, Any]:
+        """Return all descendants of an organism."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        desc = _organism.evolution_tracker.get_descendants(organism_id)
+        return {"organism_id": organism_id, "descendants": desc, "count": len(desc)}
+
+    @app.get("/species", dependencies=[Depends(_require_api_key)])
+    def species_census() -> Dict[str, Any]:
+        """Return species census — which organisms belong to which species."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        census = _organism.population.species_census()
+        return {
+            "species": {sid: {"members": mids, "count": len(mids)}
+                        for sid, mids in census.items()},
+            "total_species": len(census),
+            "timestamp": _utc_now(),
+        }
+
+    @app.get("/ecosystem/health", dependencies=[Depends(_require_api_key)])
+    def ecosystem_health() -> Dict[str, Any]:
+        """Return composite ecosystem health score and breakdown."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        return _organism.ecosystem_health()
+
+    @app.get("/fossils", dependencies=[Depends(_require_api_key)])
+    def fossil_record() -> Dict[str, Any]:
+        """Return the fossil record — all dead organisms."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        fossils = _organism.population.fossil_record()
+        return {"fossils": fossils, "count": len(fossils), "timestamp": _utc_now()}
+
+    @app.get("/fossils/summary", dependencies=[Depends(_require_api_key)])
+    def fossil_summary() -> Dict[str, Any]:
+        """Return aggregate fossil statistics."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        return _organism.population.fossil_summary()
+
+    @app.get("/environment/events", dependencies=[Depends(_require_api_key)])
+    def environment_events() -> Dict[str, Any]:
+        """Return active and historical named environmental events."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        env = _organism.environment
+        return {
+            "active": [e.to_dict() for e in env.named_events],
+            "history": env.named_event_log[-50:],
+            "active_count": len(env.named_events),
+            "timestamp": _utc_now(),
+        }
+
+    @app.get("/births", dependencies=[Depends(_require_api_key)])
+    def birth_events(
+        limit: int = Query(10, ge=1, le=100, description="Number of recent births"),
+    ) -> Dict[str, Any]:
+        """Return recent birth events for visual layer."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        events = _organism.last_birth_events(n=limit)
+        return {"births": events, "count": len(events), "timestamp": _utc_now()}
+
+    # ------------------------------------------------------------------
+    # v3.12: Evolution Dashboard, Novelty, Diversity
+    # ------------------------------------------------------------------
+
+    @app.get("/evolution/dashboard", dependencies=[Depends(_require_api_key)])
+    def evolution_dashboard() -> Dict[str, Any]:
+        """Return evolution dashboard: population, species, novelty rate,
+        diversity index, ecosystem health, and stagnation status."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        return _organism.evolution_dashboard()
+
+    @app.get("/evolution/novelty", dependencies=[Depends(_require_api_key)])
+    def novelty_history(
+        limit: int = Query(100, ge=1, le=500, description="Recent novelty scores"),
+    ) -> Dict[str, Any]:
+        """Return novelty score history and current average."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        history = _organism.novelty_history[-limit:]
+        return {
+            "novelty_rate": _organism.novelty_rate,
+            "history": history,
+            "count": len(history),
+            "stagnating": (_organism.avg_novelty < 0.05
+                           if len(_organism.novelty_history) >= 10 else False),
+            "timestamp": _utc_now(),
+        }
+
+    @app.get("/evolution/diversity", dependencies=[Depends(_require_api_key)])
+    def population_diversity() -> Dict[str, Any]:
+        """Return population diversity index (avg pairwise genome distance)."""
+        if _organism is None:
+            raise HTTPException(status_code=500, detail="Organism not initialized")
+        diversity = _organism.population_diversity_index()
+        metrics = _organism.population.diversity_metrics()
+        return {
+            "diversity_index": round(diversity, 4),
+            "unique_genomes": metrics.get("unique_genome_hashes", 0),
+            "genome_entropy": metrics.get("genome_entropy", 0.0),
+            "trait_stddev": metrics.get("trait_stddev", {}),
+            "population_size": _organism.population.size,
+            "timestamp": _utc_now(),
+        }
+
+    # ------------------------------------------------------------------
     # OpenAPI 3.1 schema for ChatGPT Actions
     # ------------------------------------------------------------------
 
@@ -1374,3 +2225,42 @@ if (historyData.length > 0) {{
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Default ASGI app instance — allows `uvicorn al01.api:app --reload`
+# without requiring factory mode.  The factory create_app() is still the
+# preferred entry-point when the caller supplies its own Organism.
+# ---------------------------------------------------------------------------
+
+def _build_default_app() -> FastAPI:
+    import threading
+    from contextlib import asynccontextmanager
+
+    api_key = os.environ.get("AL01_API_KEY")
+    organism = Organism()
+
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI):
+        """Boot the organism loop on startup, shut it down on exit."""
+        organism.boot()
+        interval = int(os.environ.get("AL01_LOOP_INTERVAL", "5"))
+        organism._loop_stop_event.clear()
+        organism._loop_thread = threading.Thread(
+            target=organism._loop_worker,
+            args=(max(1, interval), False),
+            daemon=True,
+            name="al01-run-loop",
+        )
+        organism._loop_thread.start()
+        logger.info("[UVICORN] Organism loop started (interval=%ds)", interval)
+        yield
+        organism.shutdown()
+        logger.info("[UVICORN] Organism shutdown complete")
+
+    built_app = create_app(organism=organism, api_key=api_key)
+    built_app.router.lifespan_context = _lifespan
+    return built_app
+
+
+app = _build_default_app()

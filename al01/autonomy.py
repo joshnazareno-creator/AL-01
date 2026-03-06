@@ -796,6 +796,13 @@ class AutonomyEngine:
         self._energy -= self._config.energy_decay_per_cycle
         # v3.6: Use configurable env regen multiplier (was hardcoded 0.01)
         self._energy += energy_regen * self._config.env_regen_multiplier
+        # v3.13: Scale regen by pool grant ratio (resource scarcity throttle)
+        pool_grant = env_modifiers.get("pool_grant_ratio", 1.0) if env_modifiers else 1.0
+        if pool_grant < 1.0:
+            # Reduce net regen when the pool couldn't grant full metabolic cost
+            regen_applied = energy_regen * self._config.env_regen_multiplier
+            reduction = regen_applied * (1.0 - pool_grant) * 0.5
+            self._energy -= reduction
 
         # v3.6: Recovery mode — track consecutive low-energy cycles
         cfg = self._config

@@ -283,6 +283,161 @@ class LifeLog:
         with open(self._log_path, "r", encoding="utf-8") as fh:
             return sum(1 for _ in fh)
 
+    def repair_chain(self) -> Dict[str, Any]:
+        """Scan the full chain, truncate at the first broken link, and re-anchor head.
+
+        Steps:
+            1. Read every event from life_log.jsonl.
+            2. Walk forward verifying hashes and linkage.
+            3. Record the last valid sequence number.
+            4. Back up the original file to ``life_log_backup.jsonl``.
+            5. Rewrite the log with only the valid prefix.
+            6. Re-anchor head.json to the last valid event.
+
+        Returns a report dict with keys:
+            total_events, first_broken_seq, last_valid_seq,
+            events_dropped, backup_path, status.
+        """
+        with self._lock:
+            backup_path = os.path.join(self._data_dir, "life_log_backup.jsonl")
+
+            # -- 1. Read all events --
+            all_events: List[Dict[str, Any]] = []
+            if os.path.exists(self._log_path):
+                with open(self._log_path, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if line:
+                            all_events.append(json.loads(line))
+
+            total = len(all_events)
+            if total == 0:
+                return {
+                    "total_events": 0,
+                    "first_broken_seq": None,
+                    "last_valid_seq": 0,
+                    "events_dropped": 0,
+                    "backup_path": None,
+                    "status": "EMPTY",
+                }
+
+            # -- 2. Walk forward to find first break --
+            valid_events: List[Dict[str, Any]] = []
+            first_broken_seq: Optional[int] = None
+
+            for i, ev in enumerate(all_events):
+                # Verify own hash
+                expected_hash = _compute_hash(
+                    ev["prev_hash"], ev["payload"], ev["t"], ev["seq"],
+                )
+                if ev.get("hash") != expected_hash:
+                    first_broken_seq = ev.get("seq")
+                    logger.warning(
+                        "[REPAIR] Hash mismatch at seq=%d (expected=%s got=%s)",
+                        ev.get("seq", "?"), expected_hash[:16],
+                        str(ev.get("hash", "?"))[:16],
+                    )
+                    break
+
+                # Verify linkage to previous
+                if i > 0:
+                    if ev["prev_hash"] != all_events[i - 1].get("hash"):
+                        first_broken_seq = ev.get("seq")
+                        logger.warning(
+                            "[REPAIR] Link break at seq=%d", ev.get("seq", "?"),
+                        )
+                        break
+
+                valid_events.append(ev)
+
+            # If no break found, chain is already clean
+            if first_broken_seq is None:
+                # Still re-anchor head in case it drifted
+                last_ev = valid_events[-1] if valid_events else None
+                if last_ev:
+                    self._head = {
+                        "head_hash": last_ev["hash"],
+                        "head_seq": last_ev["seq"],
+                        "created_at": self._head.get("created_at", _utc_now()),
+                        "organism_id": self._organism_id,
+                        "updated_at": _utc_now(),
+                    }
+                    self._save_head()
+                return {
+                    "total_events": total,
+                    "first_broken_seq": None,
+                    "last_valid_seq": last_ev["seq"] if last_ev else 0,
+                    "events_dropped": 0,
+                    "backup_path": None,
+                    "status": "CLEAN",
+                }
+
+            last_valid_seq = valid_events[-1]["seq"] if valid_events else 0
+            events_dropped = total - len(valid_events)
+
+            # -- 4. Back up original --
+            import shutil
+            shutil.copy2(self._log_path, backup_path)
+            logger.info("[REPAIR] Backup created: %s (%d events)", backup_path, total)
+
+            # -- 5. Rewrite with valid prefix only --
+            with open(self._log_path, "w", encoding="utf-8") as fh:
+                for ev in valid_events:
+                    fh.write(
+                        json.dumps(ev, separators=(",", ":"), default=str) + "\n"
+                    )
+            logger.info(
+                "[REPAIR] Rewrote life_log.jsonl: %d valid events (dropped %d)",
+                len(valid_events), events_dropped,
+            )
+
+            # -- 6. Re-anchor head --
+            if valid_events:
+                last_ev = valid_events[-1]
+                self._head = {
+                    "head_hash": last_ev["hash"],
+                    "head_seq": last_ev["seq"],
+                    "created_at": self._head.get("created_at", _utc_now()),
+                    "organism_id": self._organism_id,
+                    "updated_at": _utc_now(),
+                }
+            else:
+                self._head = {
+                    "head_hash": _GENESIS_HASH,
+                    "head_seq": 0,
+                    "created_at": _utc_now(),
+                    "organism_id": self._organism_id,
+                    "updated_at": _utc_now(),
+                }
+            self._save_head()
+
+            # -- 7. Log the repair event into the now-clean chain --
+            self.append_event(
+                event_type="chain_repair",
+                payload={
+                    "message": "Hash chain repaired — truncated at first broken link",
+                    "first_broken_seq": first_broken_seq,
+                    "last_valid_seq": last_valid_seq,
+                    "events_dropped": events_dropped,
+                    "backup_path": backup_path,
+                },
+            )
+
+            self._integrity_status = "OK"
+            logger.warning(
+                "[REPAIR] Chain repaired: valid=%d dropped=%d first_broken=%d",
+                len(valid_events), events_dropped, first_broken_seq,
+            )
+
+            return {
+                "total_events": total,
+                "first_broken_seq": first_broken_seq,
+                "last_valid_seq": last_valid_seq,
+                "events_dropped": events_dropped,
+                "backup_path": backup_path,
+                "status": "REPAIRED",
+            }
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

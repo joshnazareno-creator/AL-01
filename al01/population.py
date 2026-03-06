@@ -29,6 +29,18 @@ from al01.genome import Genome
 
 logger = logging.getLogger("al01.population")
 
+# v3.13: Absolute hard ceiling that NO code path may exceed.
+# This includes genesis vault reseeds, portable imports, and
+# experiment config overrides.  AL-01 (parent) counts toward this.
+ABSOLUTE_POPULATION_CAP: int = 60
+
+# v3.17: Minimum cycles between births for any single parent.
+# Applies to all reproduction paths (auto, rare, stability, lone-survivor).
+BIRTH_COOLDOWN_CYCLES: int = 500
+
+# v3.11: Species divergence threshold — Euclidean genome distance
+SPECIES_DIVERGENCE_THRESHOLD: float = 0.35
+
 
 def _genome_hash(traits: Dict[str, float]) -> str:
     """SHA-256 hash of trait values, truncated to 16 hex chars."""
@@ -53,7 +65,20 @@ class Population:
         self._path = os.path.join(data_dir, "population.json")
         self._lock = threading.RLock()
         self._child_counter: int = 0
-        self._max_population: int = 50  # hard cap, overridable via Organism
+        self._max_population: int = ABSOLUTE_POPULATION_CAP  # hard cap, overridable via Organism (clamped to ABSOLUTE_POPULATION_CAP)
+
+        # v3.14: Population floor — never allow pop below 20% of max
+        # unless hardcore_extinction_mode is explicitly enabled.
+        self._hardcore_extinction_mode: bool = False
+
+        # v3.15: Dormant organisms — soft-failure instead of death
+        # Dormant organisms don't participate in reproduction or decisions
+        # but are preserved for recovery when conditions improve.
+        self._dormant_metabolic_fraction: float = 0.1  # dormant organisms use 10% metabolic cost
+
+        # v3.17: Reproduction safety — birth lock + event idempotency
+        self._current_tick: int = 0
+        self._processed_repro_events: set = set()
 
         # Seeded RNG for reproducibility — interactions and spawning use this
         self._rng = random.Random(rng_seed)
@@ -90,12 +115,11 @@ class Population:
                 "alive": True,
                 "death_info": None,
                 "consecutive_above_repro": 0,
+                "last_birth_tick": -BIRTH_COOLDOWN_CYCLES,
                 "nickname": None,
             }
-            self._save()
-        else:
-            # Migrate existing members to v3.0 format
-            self._migrate_members()
+
+        self._migrate_members()
 
     def _migrate_members(self) -> None:
         """Add v3.0 fields to any legacy member records."""
@@ -126,6 +150,9 @@ class Population:
             if "consecutive_above_repro" not in m:
                 m["consecutive_above_repro"] = 0
                 changed = True
+            if "last_birth_tick" not in m:
+                m["last_birth_tick"] = -BIRTH_COOLDOWN_CYCLES
+                changed = True
             if "nickname" not in m:
                 m["nickname"] = None
                 changed = True
@@ -143,13 +170,47 @@ class Population:
 
     @max_population.setter
     def max_population(self, value: int) -> None:
-        self._max_population = max(2, value)
+        self._max_population = max(2, min(value, ABSOLUTE_POPULATION_CAP))
+
+    @property
+    def min_population_floor(self) -> int:
+        """v3.15: Minimum population floor = 20% of max_population.
+
+        Population will not drop below this unless
+        ``hardcore_extinction_mode`` is enabled.
+        """
+        return max(1, int(self._max_population * 0.2))
+
+    @property
+    def hardcore_extinction_mode(self) -> bool:
+        """v3.14: When True, population may drop to zero (no floor protection)."""
+        return self._hardcore_extinction_mode
+
+    @hardcore_extinction_mode.setter
+    def hardcore_extinction_mode(self, value: bool) -> None:
+        self._hardcore_extinction_mode = bool(value)
+        logger.info("[POPULATION] hardcore_extinction_mode set to %s", self._hardcore_extinction_mode)
 
     @property
     def size(self) -> int:
-        """Number of living members."""
+        """Number of living members (excludes dormant)."""
         with self._lock:
-            return sum(1 for m in self._members.values() if m.get("alive", True))
+            return sum(1 for m in self._members.values()
+                       if m.get("alive", True) and m.get("state") != "dormant")
+
+    @property
+    def living_or_dormant_count(self) -> int:
+        """Number of living + dormant members."""
+        with self._lock:
+            return sum(1 for m in self._members.values()
+                       if m.get("alive", True))
+
+    @property
+    def dormant_count(self) -> int:
+        """Number of dormant members."""
+        with self._lock:
+            return sum(1 for m in self._members.values()
+                       if m.get("alive", True) and m.get("state") == "dormant")
 
     @property
     def total_size(self) -> int:
@@ -159,9 +220,10 @@ class Population:
 
     @property
     def member_ids(self) -> List[str]:
-        """IDs of living members."""
+        """IDs of living members (excludes dormant)."""
         with self._lock:
-            return [mid for mid, m in self._members.items() if m.get("alive", True)]
+            return [mid for mid, m in self._members.items()
+                    if m.get("alive", True) and m.get("state") != "dormant"]
 
     @property
     def all_member_ids(self) -> List[str]:
@@ -175,13 +237,20 @@ class Population:
             return dict(m) if m else None
 
     def get_all(self) -> List[Dict[str, Any]]:
-        """Get all living members."""
+        """Get all living members (excludes dormant)."""
         with self._lock:
-            return [dict(m) for m in self._members.values() if m.get("alive", True)]
+            return [dict(m) for m in self._members.values()
+                    if m.get("alive", True) and m.get("state") != "dormant"]
 
     def get_all_including_dead(self) -> List[Dict[str, Any]]:
         with self._lock:
             return [dict(m) for m in self._members.values()]
+
+    def get_dormant(self) -> List[Dict[str, Any]]:
+        """v3.15: Get all dormant members."""
+        with self._lock:
+            return [dict(m) for m in self._members.values()
+                    if m.get("alive", True) and m.get("state") == "dormant"]
 
     def update_member(self, organism_id: str, updates: Dict[str, Any]) -> None:
         """Update fields for an existing member and persist.
@@ -274,7 +343,10 @@ class Population:
     def remove_member(self, organism_id: str, cause: str = "unknown") -> Optional[Dict[str, Any]]:
         """Mark an organism as dead.  Does NOT delete from registry.
 
-        Returns the death info, or None if not found.
+        v3.14: Refuses to kill if it would drop population below
+        ``min_population_floor`` (unless ``hardcore_extinction_mode`` is on).
+
+        Returns the death info, or None if not found / blocked by floor.
         """
         with self._lock:
             m = self._members.get(organism_id)
@@ -282,6 +354,19 @@ class Population:
                 return None
             if not m.get("alive", True):
                 return m.get("death_info")
+
+            # v3.14: Population floor guard
+            # Only enforced when the population has reached the floor level.
+            # If population is already below floor (hasn't grown there), deaths proceed normally.
+            if not self._hardcore_extinction_mode:
+                living_count = sum(1 for mx in self._members.values() if mx.get("alive", True))
+                floor = self.min_population_floor
+                if living_count >= floor and (living_count - 1) < floor:
+                    logger.warning(
+                        "[POPULATION] Floor guard: refusing death of %s (living=%d, floor=%d)",
+                        organism_id, living_count, floor,
+                    )
+                    return None
 
             death_info = {
                 "cause": cause,
@@ -301,10 +386,89 @@ class Population:
         )
         return death_info
 
+    def enter_dormant(self, organism_id: str, cause: str = "unknown") -> Optional[Dict[str, Any]]:
+        """v3.15: Put an organism into dormant state instead of killing it.
+
+        Dormant organisms:
+        - Are still ``alive=True`` but ``state="dormant"``
+        - Do NOT participate in reproduction or evolution decisions
+        - Consume only ``_dormant_metabolic_fraction`` of normal energy
+        - Can be woken when conditions improve (via ``wake_dormant()``)
+
+        Returns dormant info dict, or None if not found / already dead.
+        """
+        with self._lock:
+            m = self._members.get(organism_id)
+            if not m:
+                return None
+            if not m.get("alive", True):
+                return None  # already dead, can't go dormant
+            if m.get("state") == "dormant":
+                return m.get("dormant_info")  # already dormant
+
+            dormant_info = {
+                "cause": cause,
+                "dormant_since": _utc_now(),
+                "fitness_at_dormancy": m.get("genome", {}).get("fitness", 0.0),
+                "energy_at_dormancy": m.get("energy", 0.0),
+                "generation_id": m.get("generation_id", 0),
+            }
+            m["state"] = "dormant"
+            m["dormant_info"] = dormant_info
+            m["consecutive_above_repro"] = 0  # dormant organisms cannot reproduce
+            self._save()
+
+        logger.info(
+            "[POPULATION] Dormant: %s cause=%s fitness=%.4f",
+            organism_id, cause, dormant_info["fitness_at_dormancy"],
+        )
+        return dormant_info
+
+    def wake_dormant(self, organism_id: str, energy_boost: float = 0.3) -> Optional[Dict[str, Any]]:
+        """v3.15: Wake a dormant organism back to active state.
+
+        Gives a small energy boost to help the organism survive after waking.
+        Returns the wake record, or None if not dormant.
+        """
+        with self._lock:
+            m = self._members.get(organism_id)
+            if not m:
+                return None
+            if m.get("state") != "dormant":
+                return None
+
+            old_energy = m.get("energy", 0.0)
+            new_energy = min(1.0, old_energy + energy_boost)
+            m["state"] = "idle"
+            m["energy"] = round(new_energy, 6)
+            dormant_info = m.pop("dormant_info", {})
+            wake_record = {
+                "organism_id": organism_id,
+                "woke_at": _utc_now(),
+                "dormant_since": dormant_info.get("dormant_since"),
+                "energy_before": round(old_energy, 6),
+                "energy_after": round(new_energy, 6),
+            }
+            self._save()
+
+        logger.info(
+            "[POPULATION] Woke dormant: %s energy=%.4f→%.4f",
+            organism_id, old_energy, new_energy,
+        )
+        return wake_record
+
+    @property
+    def dormant_ids(self) -> List[str]:
+        """IDs of dormant members."""
+        with self._lock:
+            return [mid for mid, m in self._members.items()
+                    if m.get("alive", True) and m.get("state") == "dormant"]
+
     def prune_weakest(self, max_size: int, min_keep: int = 2) -> List[Dict[str, Any]]:
         """Kill the weakest organisms to bring population down to *max_size*.
 
         Never kills below *min_keep* living organisms.
+        v3.14: Also respects ``min_population_floor`` unless hardcore mode.
         Returns list of death records.
         """
         deaths: List[Dict[str, Any]] = []
@@ -322,6 +486,13 @@ class Population:
             to_kill = len(living) - max_size
             # Respect minimum
             to_kill = min(to_kill, len(living) - min_keep)
+
+            # v3.14: Respect population floor
+            # Only enforced when population is at or above the floor.
+            if not self._hardcore_extinction_mode:
+                floor = self.min_population_floor
+                if len(living) >= floor:
+                    to_kill = min(to_kill, len(living) - floor)
 
             for i in range(to_kill):
                 mid = living[i][0]
@@ -348,20 +519,68 @@ class Population:
     # Reproduction
     # ------------------------------------------------------------------
 
+    def set_tick(self, tick: int) -> None:
+        """Advance the population tick counter and clear per-tick state."""
+        if tick != self._current_tick:
+            self._current_tick = tick
+            self._processed_repro_events.clear()
+
+    def deduct_energy(self, organism_id: str, cost: float) -> None:
+        """v3.18: Deduct *cost* energy from an organism (clamped to 0)."""
+        with self._lock:
+            m = self._members.get(organism_id)
+            if m:
+                m["energy"] = max(0.0, m.get("energy", 0.0) - cost)
+
     def spawn_child(self, parent_genome: Genome, parent_evolution: int,
-                    parent_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                    parent_id: Optional[str] = None,
+                    mutation_variance: float = 0.05) -> Optional[Dict[str, Any]]:
         """Create a new child organism from a parent genome.
 
         v3.0: child gets generation_id = parent+1, genome_hash,
         independent fitness_history, stochastic birth mutation.
         v3.4: Returns None if population cap reached.
+        v3.17: Birth-lock, event idempotency, alive re-check.
+        v3.19: mutation_variance parameter (default 0.05).
         """
         # Enforce hard cap
         if self.size >= self._max_population:
             logger.info("[POPULATION] Cap reached (%d/%d) — spawn refused",
                         self.size, self._max_population)
             return None
+        # v3.13: Absolute ceiling — never exceed ABSOLUTE_POPULATION_CAP
+        if self.size >= ABSOLUTE_POPULATION_CAP:
+            logger.warning(
+                "[POPULATION] ABSOLUTE CAP reached (%d/%d) — spawn blocked",
+                self.size, ABSOLUTE_POPULATION_CAP,
+            )
+            return None
         with self._lock:
+            # v3.17 guards only apply when parent_id is explicitly provided
+            # (not for setup/manual spawns where parent_id=None)
+            if parent_id:
+                # Safety re-check — parent must be alive at spawn time
+                parent_rec = self._members.get(parent_id)
+                if parent_rec and not parent_rec.get("alive", True):
+                    logger.info("[POPULATION] Dead parent %s — spawn blocked", parent_id)
+                    return None
+                if parent_rec and parent_rec.get("state") == "dormant":
+                    logger.info("[POPULATION] Dormant parent %s — spawn blocked", parent_id)
+                    return None
+
+                # Birth cooldown — 500 cycles between births per parent
+                last_bt = parent_rec.get("last_birth_tick", -BIRTH_COOLDOWN_CYCLES) if parent_rec else -BIRTH_COOLDOWN_CYCLES
+                if self._current_tick - last_bt < BIRTH_COOLDOWN_CYCLES:
+                    logger.info("[POPULATION] Birth-cooldown: %s last spawned at tick %d (current %d, need %d gap)",
+                                parent_id, last_bt, self._current_tick, BIRTH_COOLDOWN_CYCLES)
+                    return None
+
+                # Event idempotency — same tick:parent never processed twice
+                event_id = f"{self._current_tick}:{parent_id}"
+                if event_id in self._processed_repro_events:
+                    logger.info("[POPULATION] Idempotency: event %s already processed", event_id)
+                    return None
+                self._processed_repro_events.add(event_id)
             self._child_counter += 1
             child_id = f"{self._parent_id}-child-{self._child_counter}"
 
@@ -371,7 +590,7 @@ class Population:
             if parent_record:
                 parent_gen = parent_record.get("generation_id", 0)
 
-            child_genome = parent_genome.spawn_child(variance=0.05)
+            child_genome = parent_genome.spawn_child(variance=mutation_variance)
             child_traits = child_genome.traits
 
             child_record = {
@@ -392,9 +611,15 @@ class Population:
                 "alive": True,
                 "death_info": None,
                 "consecutive_above_repro": 0,
+                "last_birth_tick": -BIRTH_COOLDOWN_CYCLES,
                 "nickname": None,
             }
             self._members[child_id] = child_record
+            # v3.17: Record birth tick on parent
+            if parent_id:
+                parent_rec = self._members.get(parent_id)
+                if parent_rec:
+                    parent_rec["last_birth_tick"] = self._current_tick
             self._save()
 
         logger.info(
@@ -409,14 +634,20 @@ class Population:
         organism_id: str,
         fitness_threshold: float = 0.5,
         required_cycles: int = 5,
+        energy_min: float = 0.50,
+        energy_cost: float = 0.20,
     ) -> Optional[Dict[str, Any]]:
         """Check if organism qualifies for autonomous reproduction.
 
         Returns child record if reproduction triggered, else None.
+        v3.18: Parent must have energy ≥ *energy_min*; costs *energy_cost*.
         """
         with self._lock:
             m = self._members.get(organism_id)
             if not m or not m.get("alive", True):
+                return None
+            # v3.16 fix: dormant organisms cannot reproduce
+            if m.get("state") == "dormant":
                 return None
             consecutive = m.get("consecutive_above_repro", 0)
             if consecutive < required_cycles:
@@ -424,6 +655,10 @@ class Population:
             genome_data = m.get("genome", {})
             fitness = genome_data.get("fitness", 0.0)
             if fitness < fitness_threshold:
+                return None
+            # v3.18: Energy gate
+            parent_energy = m.get("energy", 0.0)
+            if parent_energy < energy_min:
                 return None
             evo = m.get("evolution_count", 0)
 
@@ -433,12 +668,38 @@ class Population:
         if child:
             with self._lock:
                 self._members[organism_id]["consecutive_above_repro"] = 0
+                # v3.18: Deduct reproduction energy cost from parent
+                old_e = self._members[organism_id].get("energy", 0.0)
+                self._members[organism_id]["energy"] = max(0.0, old_e - energy_cost)
                 self._save()
         return child
 
     # ------------------------------------------------------------------
     # Analytics
     # ------------------------------------------------------------------
+
+    def top_fitness_members(self, n: int = 10, include_dormant: bool = True) -> List[Dict[str, Any]]:
+        """v3.15: Return top-N members by fitness (living + optionally dormant).
+
+        Used by extinction recovery protocol to seed children from
+        the best available lineage.
+        """
+        with self._lock:
+            candidates = []
+            for mid, m in self._members.items():
+                if not m.get("alive", True):
+                    continue
+                if m.get("state") == "dormant" and not include_dormant:
+                    continue
+                candidates.append(dict(m))
+            # Also include recently dead members (within last 50) as fallback
+            dead = [(mid, m) for mid, m in self._members.items() if not m.get("alive", True)]
+            dead.sort(key=lambda x: x[1].get("death_info", {}).get("death_time", ""), reverse=True)
+            for mid, m in dead[:50]:
+                candidates.append(dict(m))
+        # Sort by fitness descending
+        candidates.sort(key=lambda x: x.get("genome", {}).get("fitness", 0.0), reverse=True)
+        return candidates[:n]
 
     def trait_variance(self) -> Dict[str, float]:
         """Per-trait variance across all living members."""
@@ -594,6 +855,57 @@ class Population:
         return sorted(gens)
 
     # ------------------------------------------------------------------
+    # v3.11: Ecosystem pressure helpers
+    # ------------------------------------------------------------------
+
+    def strategy_dominance_penalty(
+        self,
+        strategy_dist: Dict[str, int],
+        organism_strategy: str,
+        threshold: float = 0.80,
+    ) -> float:
+        """Anti-monoculture: diminishing returns when a strategy exceeds *threshold*.
+
+        Returns a multiplicative penalty in (0, 1].  1.0 = no penalty.
+        When the organism's strategy fraction exceeds *threshold*, the
+        penalty scales linearly: ``1.0 - (fraction - threshold) / (1.0 - threshold)``.
+
+        This does NOT punish the strategy outright — it merely reduces
+        its marginal fitness advantage.
+        """
+        total = sum(strategy_dist.values())
+        if total == 0:
+            return 1.0
+        count = strategy_dist.get(organism_strategy, 0)
+        fraction = count / total
+        if fraction <= threshold:
+            return 1.0
+        # Linear diminishing returns above threshold
+        excess = (fraction - threshold) / (1.0 - threshold)
+        return max(0.10, 1.0 - excess)  # floor at 0.10 — never zeroes out
+
+    def explorer_novelty_multiplier(
+        self,
+        strategy_dist: Dict[str, int],
+        explorer_threshold: float = 0.05,
+        reward_multiplier: float = 1.5,
+    ) -> float:
+        """Novelty reward: boost explorer fitness when explorers are rare.
+
+        If the fraction of explorers in the population is below
+        *explorer_threshold*, return *reward_multiplier* (> 1).
+        Otherwise return 1.0.
+        """
+        total = sum(strategy_dist.values())
+        if total == 0:
+            return 1.0
+        explorer_count = strategy_dist.get("explorer", 0)
+        explorer_fraction = explorer_count / total
+        if explorer_fraction < explorer_threshold:
+            return reward_multiplier
+        return 1.0
+
+    # ------------------------------------------------------------------
     # Interactions
     # ------------------------------------------------------------------
 
@@ -671,6 +983,186 @@ class Population:
     def should_reproduce(self, evolution_count: int) -> bool:
         """Check if parent should reproduce (every 10 evolutions)."""
         return evolution_count > 0 and evolution_count % 10 == 0
+
+    # ------------------------------------------------------------------
+    # Population Diversity Index (v3.12)
+    # ------------------------------------------------------------------
+
+    def population_diversity(self) -> float:
+        """Average pairwise genome distance across all living organisms.
+
+        Returns a float ≥ 0.  Higher = more diverse population.
+        If fewer than 2 organisms, returns 0.0.
+        """
+        with self._lock:
+            living = [
+                m for m in self._members.values()
+                if m.get("alive", True) and m.get("state") != "dormant"
+            ]
+        if len(living) < 2:
+            return 0.0
+
+        genomes = [Genome.from_dict(m.get("genome", {})) for m in living]
+        total_dist = 0.0
+        pairs = 0
+        for i in range(len(genomes)):
+            for j in range(i + 1, len(genomes)):
+                total_dist += genomes[i].distance(genomes[j])
+                pairs += 1
+        return round(total_dist / pairs, 6) if pairs > 0 else 0.0
+
+    # ------------------------------------------------------------------
+    # Species Divergence (v3.11)
+    # ------------------------------------------------------------------
+
+    def assign_species(self, organism_id: str, species_id: str) -> None:
+        """Assign a species label to an organism."""
+        with self._lock:
+            m = self._members.get(organism_id)
+            if m:
+                m["species_id"] = species_id
+                self._save()
+
+    def get_species(self, organism_id: str) -> Optional[str]:
+        """Return the species_id for an organism, or None."""
+        with self._lock:
+            m = self._members.get(organism_id)
+            if m:
+                return m.get("species_id")
+        return None
+
+    def species_census(self) -> Dict[str, List[str]]:
+        """Return {species_id: [organism_ids]} for all living members."""
+        with self._lock:
+            census: Dict[str, List[str]] = {}
+            for mid, m in self._members.items():
+                if not m.get("alive", True):
+                    continue
+                sid = m.get("species_id", "default")
+                census.setdefault(sid, []).append(mid)
+        return census
+
+    def check_speciation(self, child_id: str, parent_id: str,
+                         threshold: float = SPECIES_DIVERGENCE_THRESHOLD) -> Optional[str]:
+        """Check if *child* has diverged from *parent* enough for a new species.
+
+        If genome distance > threshold, assigns a new species_id to the child
+        and returns it.  Otherwise inherits the parent's species and returns None.
+        """
+        with self._lock:
+            child_m = self._members.get(child_id)
+            parent_m = self._members.get(parent_id)
+            if not child_m or not parent_m:
+                return None
+
+            child_genome = Genome.from_dict(child_m.get("genome", {}))
+            parent_genome = Genome.from_dict(parent_m.get("genome", {}))
+            dist = child_genome.distance(parent_genome)
+
+            parent_species = parent_m.get("species_id", "species-A")
+
+            if dist > threshold:
+                # New species
+                existing = set()
+                for m in self._members.values():
+                    s = m.get("species_id")
+                    if s:
+                        existing.add(s)
+                # Generate species-B, species-C, ... species-Z, species-AA, ...
+                idx = len(existing) + 1
+                new_id = self._species_label(idx)
+                while new_id in existing:
+                    idx += 1
+                    new_id = self._species_label(idx)
+                child_m["species_id"] = new_id
+                self._save()
+                logger.info(
+                    "[SPECIES] Divergence! %s → new species %s (dist=%.4f > %.4f)",
+                    child_id, new_id, dist, threshold,
+                )
+                return new_id
+            else:
+                child_m["species_id"] = parent_species
+                self._save()
+                return None
+
+    @staticmethod
+    def _species_label(n: int) -> str:
+        """Convert 1-based index to species label: 1→A, 2→B, ..., 26→Z, 27→AA."""
+        result = []
+        while n > 0:
+            n -= 1
+            result.append(chr(ord('A') + n % 26))
+            n //= 26
+        return "species-" + "".join(reversed(result))
+
+    # ------------------------------------------------------------------
+    # Fossil Record (v3.11)
+    # ------------------------------------------------------------------
+
+    def fossil_record(self) -> List[Dict[str, Any]]:
+        """Return structured fossil records for all dead organisms.
+
+        Each fossil contains the organism's identity, lineage, lifespan
+        data and cause of death — suitable for historical analysis.
+        """
+        fossils: List[Dict[str, Any]] = []
+        with self._lock:
+            for mid, m in self._members.items():
+                if m.get("alive", True):
+                    continue
+                death_info = m.get("death_info", {})
+                fossil = {
+                    "organism_id": mid,
+                    "generation": m.get("generation_id", 0),
+                    "parent_id": m.get("parent_id"),
+                    "species_id": m.get("species_id", "default"),
+                    "genome_hash": m.get("genome_hash", ""),
+                    "cause_of_death": death_info.get("cause", "unknown"),
+                    "death_time": death_info.get("death_time"),
+                    "final_fitness": death_info.get("final_fitness", 0.0),
+                    "final_energy": death_info.get("final_energy", 0.0),
+                    "fitness_history_length": len(m.get("fitness_history", [])),
+                }
+                fossils.append(fossil)
+        # Sort by death_time ascending (oldest first)
+        fossils.sort(key=lambda f: f.get("death_time") or "")
+        return fossils
+
+    def fossil_summary(self) -> Dict[str, Any]:
+        """Aggregate statistics across the fossil record."""
+        fossils = self.fossil_record()
+        if not fossils:
+            return {"total_deaths": 0, "causes": {}, "avg_final_fitness": 0.0,
+                    "generations_lost": [], "species_extinct": []}
+
+        causes: Dict[str, int] = {}
+        gens: set = set()
+        species_died: Dict[str, int] = {}
+        fitnesses: List[float] = []
+        for f in fossils:
+            c = f["cause_of_death"]
+            causes[c] = causes.get(c, 0) + 1
+            gens.add(f["generation"])
+            sid = f["species_id"]
+            species_died[sid] = species_died.get(sid, 0) + 1
+            fitnesses.append(f["final_fitness"])
+
+        # Find species that are fully extinct (all members dead)
+        living_species = set()
+        with self._lock:
+            for m in self._members.values():
+                if m.get("alive", True):
+                    living_species.add(m.get("species_id", "default"))
+        extinct = [s for s in species_died if s not in living_species]
+
+        return {
+            "total_deaths": len(fossils),
+            "causes": dict(sorted(causes.items(), key=lambda x: -x[1])),
+            "avg_final_fitness": round(sum(fitnesses) / len(fitnesses), 4) if fitnesses else 0.0,
+            "generations_lost": sorted(gens),
+            "species_extinct": sorted(extinct),
+        }
 
     # ------------------------------------------------------------------
     # Persistence

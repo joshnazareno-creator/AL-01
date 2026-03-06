@@ -206,7 +206,10 @@ class TestSurvivalGraceCycles(unittest.TestCase):
 
     def test_above_fitness_resets_counter(self):
         org, _ = self._make_organism(grace_cycles=100, threshold=0.0)
-        # fitness starts around 0.5, above 0.0 → should reset
+        # Ensure traits are high enough so weighted_fitness > FOUNDER_FITNESS_FLOOR (0.15).
+        # (Firestore recovery may load degraded production traits into a fresh tmpdir.)
+        for t in org._genome.traits:
+            org._genome.set_trait(t, 0.5)
         org._below_fitness_cycles["AL-01"] = 50
         org.autonomy_cycle()
         self.assertEqual(org._below_fitness_cycles.get("AL-01", 0), 0)

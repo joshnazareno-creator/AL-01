@@ -418,6 +418,27 @@ class Genome:
         return effects
 
 
+    # ------------------------------------------------------------------
+    # Distance / Species
+    # ------------------------------------------------------------------
+
+    def distance(self, other: "Genome") -> float:
+        """Euclidean distance between two genomes in trait-space.
+
+        Uses *effective* (soft-capped) traits so the metric reflects actual
+        phenotypic difference rather than raw unbounded values.
+        """
+        a = self.effective_traits
+        b = other.effective_traits
+        all_keys = sorted(set(a) | set(b))
+        return math.sqrt(sum((a.get(k, 0.0) - b.get(k, 0.0)) ** 2 for k in all_keys))
+
+
+def genome_distance(a: Genome, b: Genome) -> float:
+    """Module-level convenience: Euclidean distance between two Genomes."""
+    return a.distance(b)
+
+
 # ── Module-level helpers ─────────────────────────────────────────────────
 
 def _soft_cap(v: float) -> float:

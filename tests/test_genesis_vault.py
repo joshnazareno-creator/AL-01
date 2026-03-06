@@ -428,8 +428,17 @@ class TestOrganismIntegration(unittest.TestCase):
         self.assertIsInstance(org.genesis_vault, GenesisVault)
 
     def test_check_extinction_reseed_no_action(self):
-        """When population is alive, returns None."""
+        """When population is alive and large enough, returns None."""
         org = self._make_organism()
+        # Spawn enough children so pop >= 5 (extinction recovery threshold)
+        from al01.genome import Genome
+        from al01.population import BIRTH_COOLDOWN_CYCLES
+        g = Genome()
+        parent = org.population._members["AL-01"]
+        for i in range(5):
+            parent["last_birth_tick"] = -BIRTH_COOLDOWN_CYCLES * 2
+            org.population.set_tick(i)
+            org.population.spawn_child(g, parent_evolution=0, parent_id="AL-01")
         result = org.check_extinction_reseed()
         self.assertIsNone(result)
 

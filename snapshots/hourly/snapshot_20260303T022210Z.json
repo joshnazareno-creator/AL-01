@@ -1,0 +1,221 @@
+{
+  "snapshot_version": 1,
+  "timestamp": "2026-03-03T02:22:10.580064+00:00",
+  "timestamp_unix": 1772504530.580064,
+  "label": "auto",
+  "state": {
+    "interaction_count": 144,
+    "memory_size": 32,
+    "awareness": 0.703456,
+    "evolution_count": 455,
+    "version": "3.9",
+    "uptime_seconds": 7326.49,
+    "age_seconds": 466061.24,
+    "birth_time": "2026-02-25T16:54:29.385995+00:00",
+    "uptime_sessions": 79,
+    "integrity_status": "BROKEN",
+    "life_log_events": 21962,
+    "policy_weights": {
+      "curiosity_weight": 0.5,
+      "risk_weight": 0.3,
+      "social_weight": 0.5
+    },
+    "total_interactions_all_time": 1,
+    "first_snapshot_timestamp": "2026-02-25T07:36:49.747960+00:00",
+    "snapshot_count": 56,
+    "firestore_writes_today": 151,
+    "genome": {
+      "traits": {
+        "adaptability": 0.02,
+        "energy_efficiency": 0.29026,
+        "resilience": 0.237279,
+        "perception": 0.313294,
+        "creativity": 0.093447
+      },
+      "effective_traits": {
+        "adaptability": 0.02,
+        "energy_efficiency": 0.29026,
+        "resilience": 0.237279,
+        "perception": 0.313294,
+        "creativity": 0.093447
+      },
+      "fitness": 0.273853,
+      "trait_fitness": 0.190856,
+      "mutation_rate": 0.1,
+      "mutation_delta": 0.1,
+      "fitness_components": {
+        "survival": 0.133,
+        "efficiency": 0.0,
+        "stability": 0.933509,
+        "adaptation": 0.270677
+      }
+    },
+    "fitness": 0.273853,
+    "fitness_components": {
+      "survival": 0.133,
+      "efficiency": 0.0,
+      "stability": 0.9335087661053822,
+      "adaptation": 0.2706766917293233
+    },
+    "population_size": 1,
+    "population_ids": [
+      "AL-01"
+    ],
+    "pending_stimuli": 0,
+    "brain_enabled": true,
+    "stagnation_count": 0,
+    "autonomy": {
+      "stagnation_count": 0,
+      "is_stagnant": false,
+      "total_decisions": 9174,
+      "fitness_history_len": 10,
+      "fitness_variance": 0.00019606,
+      "decision_interval": 10,
+      "fitness_threshold": 0.45,
+      "effective_fitness_threshold": 0.551961,
+      "stagnation_window": 10,
+      "awareness": 0.703921,
+      "total_stimuli": 99,
+      "energy": 0.986445,
+      "exploration_mode": false,
+      "recovery_mode": false,
+      "low_energy_consecutive": 0,
+      "novelty_accumulator": 0.3,
+      "mutation_rate_offset": 0.039097,
+      "env_trait_weights": {
+        "adaptability": 1.5697,
+        "energy_efficiency": 1.8189,
+        "resilience": 0.6704,
+        "perception": 1.7248,
+        "creativity": 1.4446
+      },
+      "idle_cycles": 133,
+      "entropy_active": true,
+      "vital_score": {
+        "vital_index": 30.62,
+        "identity_persistence": 93.35,
+        "trait_variance": 1.96,
+        "adaptation_success": 27.07,
+        "entropy_resistance": 0.12,
+        "adaptation_attempts": 133,
+        "adaptation_successes": 36
+      }
+    },
+    "vital_score": {
+      "vital_index": 30.62,
+      "identity_persistence": 93.35,
+      "trait_variance": 1.96,
+      "adaptation_success": 27.07,
+      "entropy_resistance": 0.12,
+      "adaptation_attempts": 133,
+      "adaptation_successes": 36
+    },
+    "global_cycle": 133,
+    "environment": {
+      "cycle": 267,
+      "resource_pool": 476.9164,
+      "temperature": 0.219376,
+      "entropy_pressure": 0.880282,
+      "resource_abundance": 0.751387,
+      "noise_level": 0.012636,
+      "effective_abundance": 0.508809,
+      "mutation_cost_multiplier": 1.1097,
+      "energy_regen_rate": 0.2232,
+      "trait_decay_multiplier": 2.7606,
+      "fitness_noise_penalty": 0.001895,
+      "survival_modifier": 0.3219,
+      "active_scarcity_count": 1,
+      "scarcity_events": [
+        {
+          "severity": 0.4852,
+          "remaining_cycles": 7,
+          "started_at": "2026-03-03T02:18:59.328134+00:00",
+          "abundance_reduction": 0.2426
+        }
+      ],
+      "next_shift_cycle": 289,
+      "active_shock_count": 0,
+      "shock_events": [],
+      "shock_resilience_bonus": 0,
+      "pool_fraction": 0.4769,
+      "is_scarcity_pressure": false,
+      "scarcity_severity": 0.0,
+      "effective_metabolic_cost": 2.0,
+      "emergency_regen_active": false,
+      "emergency_regen_threshold": 0.25,
+      "adaptive_metabolism_active": false
+    },
+    "trait_variance": {},
+    "behavior_summary": {
+      "organism_profiles": {
+        "AL-01": {
+          "organism_id": "AL-01",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 133
+        }
+      },
+      "strategy_distribution": {
+        "explorer": 1
+      },
+      "diversity": {
+        "shannon": -0.0,
+        "simpson": 0.0,
+        "richness": 1,
+        "evenness": 0.0
+      },
+      "convergence": {
+        "status": "stable",
+        "slope": 0.0,
+        "current_variance": 0.0,
+        "variance_samples": 20,
+        "trait_convergence": {},
+        "fitness_spread": 0.0
+      },
+      "tracked_organisms": 1
+    },
+    "evolution_tracker": {
+      "generation_counter": 3,
+      "mutation_events": 10192,
+      "lineages": 90
+    },
+    "experiment": null,
+    "snapshot_manager": {
+      "running": true,
+      "interval_seconds": 3600,
+      "retention_days": 30,
+      "total_snapshots": 63,
+      "snapshots_this_session": 1,
+      "disk_usage_bytes": 4282577,
+      "disk_usage_mb": 4.08,
+      "oldest_snapshot": "2026-02-27T11:04:45.712858+00:00",
+      "newest_snapshot": "2026-03-03T01:22:10.490618+00:00",
+      "remote_sync_enabled": true,
+      "snapshot_dir": ".\\snapshots/hourly"
+    }
+  },
+  "checksum": "9af6bee1dd342b14af5136ce00bee3818dc13d06c23235a30e126b21a610242f"
+}

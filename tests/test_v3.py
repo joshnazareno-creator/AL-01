@@ -45,7 +45,7 @@ class TestEnvironmentConfig(unittest.TestCase):
 
     def test_defaults(self):
         cfg = EnvironmentConfig()
-        self.assertEqual(cfg.resource_pool_max, 100.0)
+        self.assertEqual(cfg.resource_pool_max, 1000.0)
         self.assertEqual(cfg.temperature_initial, 0.5)
         self.assertGreater(cfg.scarcity_probability, 0)
         self.assertGreater(cfg.shift_interval, 0)
@@ -57,7 +57,7 @@ class TestEnvironmentInit(unittest.TestCase):
     def test_initial_state(self):
         env = Environment(rng_seed=42)
         self.assertEqual(env.cycle, 0)
-        self.assertAlmostEqual(env.resource_pool, 100.0)
+        self.assertAlmostEqual(env.resource_pool, 1000.0)
         self.assertAlmostEqual(env.temperature, 0.5)
         self.assertAlmostEqual(env.resource_abundance, 0.8)
         self.assertFalse(env.is_scarcity_active)
@@ -102,7 +102,7 @@ class TestEnvironmentTick(unittest.TestCase):
         env = Environment(rng_seed=42)
         consumed = env.consume_resources(10.0)
         self.assertAlmostEqual(consumed, 10.0)
-        self.assertAlmostEqual(env.resource_pool, 90.0)
+        self.assertAlmostEqual(env.resource_pool, 990.0)
 
     def test_consume_more_than_available(self):
         env = Environment(rng_seed=42)
@@ -432,7 +432,7 @@ class TestExperimentConfig(unittest.TestCase):
         cfg = ExperimentConfig()
         self.assertEqual(cfg.global_seed, 42)
         self.assertEqual(cfg.duration_days, 30)
-        self.assertEqual(cfg.max_population, 50)
+        self.assertEqual(cfg.max_population, 60)
 
     def test_auto_id_generation(self):
         eid = generate_experiment_id(42)
@@ -596,6 +596,8 @@ class TestPopulationPruning(unittest.TestCase):
             self.pop.spawn_child(parent, i)
 
         # 6 total (parent + 5 children), prune to 3
+        # v3.14: Set max_population so floor (10%) doesn't block this prune
+        self.pop.max_population = 10  # floor = 1
         deaths = self.pop.prune_weakest(3, min_keep=2)
         self.assertEqual(self.pop.size, 3)
         self.assertTrue(len(deaths) > 0)

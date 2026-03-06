@@ -101,11 +101,11 @@ class TestPopulationCap(unittest.TestCase):
 
     def test_default_max_population(self):
         org = Organism(data_dir=self._tmpdir, config=MetabolismConfig())
-        self.assertEqual(org._default_max_population, 50)
+        self.assertEqual(org._default_max_population, 60)
 
     def test_population_has_cap(self):
         org = Organism(data_dir=self._tmpdir, config=MetabolismConfig())
-        self.assertEqual(org.population.max_population, 50)
+        self.assertEqual(org.population.max_population, 60)
 
     def test_spawn_child_refuses_at_cap(self):
         """spawn_child returns None when cap is reached."""
@@ -282,13 +282,19 @@ class TestChildSurvivalGrace(unittest.TestCase):
             self.child_id, parent_id="AL-01",
             traits=self.child["genome"]["traits"], cycle=1,
         )
+        # Spawn extra filler children so extinction recovery doesn't wake
+        # the dormant child (pop must stay >= 5)
+        for _ in range(5):
+            self.org.population.spawn_child(Genome(), 0)
 
     def test_child_dies_after_grace_cycles(self):
-        """Child should die after exceeding survival grace cycles."""
+        """Child should enter dormant state after exceeding survival grace cycles."""
         for _ in range(5):
             self.org.child_autonomy_cycle()
         member = self.org.population.get(self.child_id)
-        self.assertFalse(member.get("alive", True))
+        # v3.15: fitness_floor now causes dormancy instead of death
+        self.assertEqual(member.get("state"), "dormant")
+        self.assertTrue(member.get("alive", False))
 
 
 # ==================================================================

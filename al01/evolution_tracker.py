@@ -218,6 +218,109 @@ class EvolutionTracker:
         """Get full lineage map."""
         return {k: dict(v) for k, v in self._lineage.items()}
 
+    # ── Lineage tree ─────────────────────────────────────────────────
+
+    def build_family_tree(self) -> Dict[str, Any]:
+        """Build a nested family-tree structure from the flat lineage map.
+
+        Returns a list of root nodes (organisms with no parent or whose
+        parent is not tracked).  Each node has::
+
+            {"id": ..., "generation": ..., "genome_hash": ...,
+             "birth_cycle": ..., "children": [<subtree>, ...]}
+        """
+        # Index children by parent_id
+        children_of: Dict[str, List[str]] = {}
+        for oid, info in self._lineage.items():
+            pid = info.get("parent_id")
+            if pid:
+                children_of.setdefault(pid, []).append(oid)
+
+        def _subtree(oid: str) -> Dict[str, Any]:
+            info = self._lineage.get(oid, {})
+            node: Dict[str, Any] = {
+                "id": oid,
+                "generation": info.get("generation_id", 0),
+                "genome_hash": info.get("genome_hash", ""),
+                "birth_cycle": info.get("birth_cycle", 0),
+                "children": [],
+            }
+            for cid in sorted(children_of.get(oid, [])):
+                node["children"].append(_subtree(cid))
+            return node
+
+        # Roots: organisms with no parent *or* parent not in lineage
+        roots: List[str] = []
+        for oid, info in self._lineage.items():
+            pid = info.get("parent_id")
+            if not pid or pid not in self._lineage:
+                roots.append(oid)
+
+        return {"roots": [_subtree(r) for r in sorted(roots)]}
+
+    def render_tree_ascii(self) -> str:
+        """Render a human-readable ASCII family tree.
+
+        Example::
+
+            AL-01
+             +-- AL-01-child-1
+             |    +-- AL-01-child-3
+             +-- AL-01-child-2
+        """
+        tree = self.build_family_tree()
+        lines: List[str] = []
+
+        def _render(node: Dict[str, Any], prefix: str = "", is_last: bool = True) -> None:
+            connector = "+-- " if prefix else ""
+            lines.append(f"{prefix}{connector}{node['id']}")
+            children = node.get("children", [])
+            for i, child in enumerate(children):
+                last = (i == len(children) - 1)
+                if prefix:
+                    new_prefix = prefix + ("     " if is_last else "|    ")
+                else:
+                    new_prefix = " "
+                _render(child, new_prefix, last)
+
+        for root in tree.get("roots", []):
+            _render(root)
+        return "\n".join(lines)
+
+    def get_ancestor_chain(self, organism_id: str) -> List[Dict[str, Any]]:
+        """Walk up from *organism_id* to the root, returning the chain."""
+        chain: List[Dict[str, Any]] = []
+        current = organism_id
+        visited: set = set()
+        while current and current not in visited:
+            visited.add(current)
+            info = self._lineage.get(current)
+            if not info:
+                break
+            chain.append(dict(info))
+            current = info.get("parent_id")
+        return chain
+
+    def get_descendants(self, organism_id: str) -> List[str]:
+        """Return all descendant IDs of *organism_id* (breadth-first)."""
+        children_of: Dict[str, List[str]] = {}
+        for oid, info in self._lineage.items():
+            pid = info.get("parent_id")
+            if pid:
+                children_of.setdefault(pid, []).append(oid)
+
+        result: List[str] = []
+        queue = list(children_of.get(organism_id, []))
+        visited: set = set()
+        while queue:
+            oid = queue.pop(0)
+            if oid in visited:
+                continue
+            visited.add(oid)
+            result.append(oid)
+            queue.extend(children_of.get(oid, []))
+        return result
+
     def trait_variance_across_population(
         self,
         population_traits: Dict[str, Dict[str, float]],

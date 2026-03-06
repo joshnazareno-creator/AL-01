@@ -54,6 +54,64 @@ def cmd_verify(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+# ── Repair command ───────────────────────────────────────────────────
+
+def cmd_repair_vital(args: argparse.Namespace) -> None:
+    """Repair the VITAL hash chain by truncating at the first broken link."""
+    data_dir = args.data_dir
+
+    if not os.path.exists(os.path.join(data_dir, "life_log.jsonl")):
+        print(f"No life log found at {data_dir}/life_log.jsonl")
+        sys.exit(1)
+
+    identity_path = os.path.join(os.path.dirname(__file__), "identity.json")
+    organism_id = "AL-01"
+    if os.path.exists(identity_path):
+        with open(identity_path, "r", encoding="utf-8") as fh:
+            identity = json.load(fh)
+            organism_id = identity.get("name", organism_id)
+
+    log = LifeLog(data_dir=data_dir, organism_id=organism_id)
+
+    total_events = log.event_count()
+    print(f"AL-01 VITAL Chain Repair")
+    print(f"========================")
+    print(f"Log file:        {data_dir}/life_log.jsonl")
+    print(f"Total events:    {total_events}")
+    print()
+
+    report = log.repair_chain()
+
+    if report["status"] == "EMPTY":
+        print("Result: Log is empty — nothing to repair.")
+        sys.exit(0)
+
+    if report["status"] == "CLEAN":
+        print("Result: [OK] Chain is already valid — no repair needed.")
+        print(f"Last valid seq:  {report['last_valid_seq']}")
+        sys.exit(0)
+
+    # REPAIRED
+    print(f"First broken seq:   {report['first_broken_seq']}")
+    print(f"Last valid seq:     {report['last_valid_seq']}")
+    print(f"Events dropped:     {report['events_dropped']}")
+    print(f"Backup saved to:    {report['backup_path']}")
+    print()
+
+    # Verify the repaired chain
+    verify = log.verify_full_report(last_n=report['last_valid_seq'] + 10)
+    if verify["status"] == "PASS":
+        print(f"Post-repair verify: [OK] PASS")
+        print(f"New head seq:       {log.head.get('head_seq', 0)}")
+        print(f"New head hash:      {log.head.get('head_hash', '?')[:16]}...")
+        print()
+        print("Result: [OK] VITAL integrity restored.")
+    else:
+        print(f"Post-repair verify: [FAIL] — {verify.get('reason', 'unknown')}")
+        print("Manual intervention may be required.")
+        sys.exit(1)
+
+
 # ── Snapshot commands ────────────────────────────────────────────────
 
 def _make_snapshot_manager(args: argparse.Namespace) -> SnapshotManager:
@@ -211,6 +269,10 @@ def main() -> None:
     vault_hist = sub.add_parser("vault-history", help="Show reseed event history")
     vault_hist.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
 
+    # repair-vital
+    repair_p = sub.add_parser("repair-vital", help="Repair broken VITAL hash chain")
+    repair_p.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
+
     args = parser.parse_args()
 
     if args.command == "verify":
@@ -227,6 +289,8 @@ def main() -> None:
         cmd_vault_status(args)
     elif args.command == "vault-history":
         cmd_vault_history(args)
+    elif args.command == "repair-vital":
+        cmd_repair_vital(args)
     else:
         parser.print_help()
         sys.exit(1)

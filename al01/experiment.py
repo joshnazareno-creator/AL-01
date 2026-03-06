@@ -47,7 +47,7 @@ class ExperimentConfig:
     """Seconds between heartbeat ticks in autonomous mode."""
 
     # Population constraints
-    max_population: int = 50
+    max_population: int = 60
     """Maximum population size before pruning weakest."""
 
     min_population: int = 2

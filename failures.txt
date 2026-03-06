@@ -1,0 +1,85 @@
+﻿
+FAILED tests/test_genesis_vault.py::TestOrganismIntegration::test_check_extinct
+ion_reseed_no_action
+FAILED tests/test_rare_reproduction.py::TestPopulationCapGate::test_pop_at_cap_
+returns_none
+FAILED tests/test_rare_reproduction.py::TestCapRecheck::test_recheck_blocks_if_
+cap_reached_between_gates
+FAILED tests/test_v311_features.py::TestEcosystemHealth::test_health_with_multi
+ple_organisms
+FAILED tests/test_v311_features.py::TestFossilRecord::test_fossil_summary - 
+a...
+FAILED 
+tests/test_v312.py::TestEvolutionDashboard::test_dashboard_with_population
+FAILED 
+tests/test_v314.py::TestRemoveMemberFloorGuard::test_remove_blocked_at_floor
+FAILED 
+tests/test_v314.py::TestRemoveMemberFloorGuard::test_remove_allowed_above_floor
+FAILED tests/test_v314.py::TestRemoveMemberFloorGuard::test_remove_blocked_exac
+tly_at_floor
+FAILED 
+tests/test_v314.py::TestPruneWeakestFloorGuard::test_prune_respects_floor
+FAILED tests/test_v314.py::TestPruneWeakestFloorGuard::test_prune_in_hardcore_i
+gnores_floor
+FAILED tests/test_v314.py::TestPruneWeakestFloorGuard::test_prune_no_action_whe
+n_under_max
+FAILED tests/test_v314.py::TestEdgeCases::test_floor_guard_sequential_kills
+FAILED 
+tests/test_v315.py::TestPopulationFloor20::test_floor_blocks_at_20_percent
+FAILED 
+tests/test_v315.py::TestPopulationFloor20::test_prune_respects_20_percent_floor
+FAILED tests/test_v315.py::TestDormantState::test_dormant_excluded_from_size
+FAILED tests/test_v315.py::TestDormantState::test_get_dormant - IndexError: 
+l...
+FAILED 
+tests/test_v315.py::TestExtinctionRecovery::test_recovery_triggers_below_5
+FAILED 
+tests/test_v315.py::TestExtinctionRecovery::test_recovery_does_not_trigger_at_5
+FAILED tests/test_v315.py::TestExtinctionRecovery::test_recovery_does_not_trigg
+er_above_5
+FAILED tests/test_v315.py::TestExtinctionRecovery::test_recovery_wakes_dormant
+FAILED 
+tests/test_v315.py::TestTopFitnessMembers::test_top_fitness_returns_sorted
+FAILED tests/test_v315.py::TestWakeDormantCycle::test_no_wake_during_scarcity
+FAILED tests/test_v315.py::TestWakeDormantCycle::test_wake_during_critical_pop_
+even_in_scarcity
+FAILED 
+tests/test_v315.py::TestHandleDeathDormant::test_fitness_floor_causes_dormancy
+FAILED tests/test_v315.py::TestHandleDeathDormant::test_energy_depleted_causes_
+dormancy_v316
+FAILED 
+tests/test_v316.py::TestDormancyExpansion::test_energy_depleted_causes_dormancy
+FAILED tests/test_v316.py::TestDormancyExpansion::test_fitness_floor_still_caus
+es_dormancy
+FAILED tests/test_v316.py::TestDormancyExpansion::test_already_dormant_organism
+_dies_on_second_death
+FAILED tests/test_v316.py::TestDormancyExpansion::test_dormant_organism_exclude
+d_from_size
+FAILED tests/test_v316.py::TestConfigurableWakeThreshold::test_no_wake_when_poo
+l_below_threshold
+FAILED 
+tests/test_v316.py::TestConfigurableWakeThreshold::test_custom_wake_threshold
+FAILED tests/test_v316.py::TestResourceCarryingCapacity::test_carrying_capacity
+_limits_auto_reproduce
+FAILED 
+tests/test_v316.py::TestIntegration::test_energy_death_dormancy_then_wake
+FAILED 
+tests/test_v316.py::TestIntegration::test_lone_survivor_after_mass_dormancy
+FAILED tests/test_v316.py::TestIntegration::test_full_lifecycle - 
+AssertionEr...
+FAILED tests/test_v316.py::TestDormantCannotReproduce::test_auto_reproduce_bloc
+ks_dormant
+FAILED tests/test_v316.py::TestDormantCannotReproduce::test_dead_organism_canno
+t_auto_reproduce
+FAILED tests/test_v316.py::TestDormantCannotReproduce::test_auto_reproduce_cycl
+e_skips_dormant
+FAILED tests/test_v317.py::TestDeadParentCannotSpawn::test_dead_parent_100pct_r
+epro_still_blocked
+FAILED tests/test_v317.py::TestBirthLock::test_different_parents_same_tick - 
+...
+FAILED tests/test_v317.py::TestMigration::test_migration_adds_last_birth_tick
+FAILED tests/test_v34.py::TestNickname::test_migration_adds_nickname - 
+KeyErr...
+43 failed, 1004 passed in 35.87s
+
+

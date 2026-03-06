@@ -58,6 +58,9 @@ DIVERGENCE_SLOPE_THRESHOLD = 0.0005
 class BehaviorProfile:
     """Tracks behavioral patterns for a single organism."""
 
+    # v3.11: Strategy drift — reclassify every N decisions
+    STRATEGY_DRIFT_INTERVAL: int = 50
+
     def __init__(self, organism_id: str, history_size: int = 50) -> None:
         self.organism_id = organism_id
         self._decision_history: deque = deque(maxlen=history_size)
@@ -65,6 +68,11 @@ class BehaviorProfile:
         self._fitness_history: deque = deque(maxlen=history_size)
         self._strategies_detected: List[str] = []
         self._last_traits: Optional[Dict[str, float]] = None
+        # v3.11: Strategy drift tracking
+        self._decision_count: int = 0
+        self._strategy_history: List[Dict[str, Any]] = []
+        self._cached_strategy: Optional[Dict[str, Any]] = None
+        self._last_drift_at: int = 0
 
     def record_decision(
         self,
@@ -79,6 +87,11 @@ class BehaviorProfile:
         self._fitness_history.append(fitness)
         if traits:
             self._last_traits = dict(traits)
+        self._decision_count += 1
+
+        # v3.11: Strategy drift — reclassify every STRATEGY_DRIFT_INTERVAL decisions
+        if self._decision_count - self._last_drift_at >= self.STRATEGY_DRIFT_INTERVAL:
+            self._apply_strategy_drift()
 
     def classify_strategy(self) -> Dict[str, Any]:
         """Classify the organism's current behavioral strategy.
@@ -161,11 +174,42 @@ class BehaviorProfile:
     def strategies(self) -> List[str]:
         return list(self._strategies_detected)
 
+    @property
+    def strategy_history(self) -> List[Dict[str, Any]]:
+        """v3.11: History of strategy reclassifications."""
+        return list(self._strategy_history)
+
+    def _apply_strategy_drift(self) -> None:
+        """v3.11: Reclassify strategy based on the most recent trait cluster.
+
+        Called automatically every ``STRATEGY_DRIFT_INTERVAL`` decisions.
+        Records the transition for observability.
+        """
+        old = self._cached_strategy
+        new = self.classify_strategy()
+        old_name = old["strategy"] if old else "unknown"
+        new_name = new["strategy"]
+        self._cached_strategy = new
+        self._last_drift_at = self._decision_count
+        if old_name != new_name:
+            self._strategy_history.append({
+                "from": old_name,
+                "to": new_name,
+                "at_decision": self._decision_count,
+                "confidence": new.get("confidence", 0.0),
+            })
+            logger.info(
+                "[BEHAVIOR] Strategy drift %s: %s → %s (decision #%d)",
+                self.organism_id, old_name, new_name, self._decision_count,
+            )
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "organism_id": self.organism_id,
             "decision_history_len": len(self._decision_history),
             "classification": self.classify_strategy(),
+            "strategy_drift_history": self._strategy_history[-10:],
+            "decision_count": self._decision_count,
         }
 
 

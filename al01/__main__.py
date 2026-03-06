@@ -27,6 +27,7 @@ from al01.api import create_app
 from al01.autonomy import AutonomyConfig, AutonomyEngine
 from al01.brain import Brain
 from al01.database import Database
+from al01.environment import Environment, EnvironmentConfig
 from al01.genesis_vault import GenesisVault
 from al01.life_log import LifeLog
 from al01.memory_manager import MemoryManager
@@ -151,6 +152,9 @@ def main() -> None:
         autonomy_interval=10,         # every 10 ticks = ~50s at INTERVAL=5
     )
     log.info("[BOOT] Initializing Organism v%s (genome + population + brain)", VERSION)
+    # v3.18: Production environment with pool floor for ecosystem stability
+    env_cfg = EnvironmentConfig(resource_pool_min_floor=50.0)
+    environment = Environment(config=env_cfg)
     organism = Organism(
         data_dir=".",
         config=config,
@@ -160,6 +164,7 @@ def main() -> None:
         population=population,
         brain=brain,
         autonomy=autonomy,
+        environment=environment,
     )
 
     # --- 6b. Snapshot manager (hourly auto-snapshots) ---
@@ -222,12 +227,13 @@ def main() -> None:
         pass
     finally:
         # --- 11. Shutdown ---
-        organism.record_growth_snapshot()
-        organism.shutdown()
-        # Flush any pending Firestore writes before exit
-        memory.flush_firestore()
-        # Write a final daily backup
-        memory.maybe_daily_backup()
+        try:
+            organism.record_growth_snapshot()
+            organism.shutdown()
+            memory.flush_firestore()
+            memory.maybe_daily_backup()
+        except (KeyboardInterrupt, Exception) as exc:
+            log.warning("[SHUTDOWN] Cleanup interrupted: %s", exc)
         log.info("[SHUTDOWN] AL-01 v%s exited cleanly", VERSION)
 
 

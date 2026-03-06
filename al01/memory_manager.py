@@ -31,6 +31,7 @@ class MemoryManager:
     _FIRESTORE_SYNC_INTERVAL: float = 30.0  # seconds between Firestore syncs
     _FIRESTORE_MAX_RETRIES: int = 3
     _BACKUP_INTERVAL: float = 86400.0  # 24 hours
+    _MEMORY_MAX_ENTRIES: int = 5000  # cap local memory.json to avoid multi-GB bloat
 
     # Event types that are local-only (never sent to Firestore)
     _LOCAL_ONLY_EVENTS: frozenset[str] = frozenset({
@@ -82,6 +83,16 @@ class MemoryManager:
             self._file_logger.setLevel(logging.INFO)
 
         self._init_firestore(credential_path)
+
+        # In-memory entry cache — avoids repeated multi-GB json.load calls.
+        # Populated lazily on first access; invalidated only by
+        # _save_local_memory_entries (the sole write path).
+        self._entries_cache: Optional[List[Dict[str, Any]]] = None
+        self._entry_count: int = 0
+
+        # Startup trim: if memory.json exceeds a sane threshold, truncate
+        # to _MEMORY_MAX_ENTRIES to break the "too-big-to-load" deadlock.
+        self._startup_trim_if_needed()
 
     def firestore_enabled(self) -> bool:
         return self._use_firestore
@@ -219,7 +230,8 @@ class MemoryManager:
 
         try:
             state = self._load_local_state()
-            memory = self._load_local_memory_entries()
+            with self._lock:
+                memory = self._load_local_memory_entries()
             backup = {
                 "timestamp": timestamp,
                 "state": state,
@@ -246,6 +258,9 @@ class MemoryManager:
             local_payload = self._normalize_event(event, source="local")
             local_entries = self._load_local_memory_entries()
             local_entries.append(local_payload)
+            # Trim to cap — keep newest entries only
+            if len(local_entries) > self._MEMORY_MAX_ENTRIES:
+                local_entries = local_entries[-self._MEMORY_MAX_ENTRIES:]
             self._save_local_memory_entries(local_entries)
 
         # Only replicate significant events to Firestore (skip noise)
@@ -325,9 +340,8 @@ class MemoryManager:
         return matches
 
     def memory_size(self) -> int:
-        """Return the total number of memory entries."""
-        with self._lock:
-            return len(self._load_local_memory_entries())
+        """Return the total number of memory entries (cached)."""
+        return self._entry_count
 
     @property
     def database(self) -> Database:
@@ -408,6 +422,51 @@ class MemoryManager:
             self._use_firestore = False
             self._log_fallback_error(exc)
 
+    _MEMORY_FILE_SIZE_THRESHOLD: int = 50 * 1024 * 1024  # 50 MB
+
+    def _startup_trim_if_needed(self) -> None:
+        """If memory.json exceeds 50 MB, stream-read & trim to cap.
+
+        This breaks the self-reinforcing deadlock where the file is too
+        large for ``_load_local_memory_entries`` to complete, so the
+        5000-entry cap inside ``write_memory`` can never execute.
+        """
+        try:
+            if not os.path.exists(self._memory_fallback_path):
+                return
+            size = os.path.getsize(self._memory_fallback_path)
+            if size <= self._MEMORY_FILE_SIZE_THRESHOLD:
+                # Small enough — lazy load later via cache.
+                return
+
+            self._logger.warning(
+                "[MEMORY] memory.json is %.1f MB — trimming to %d entries",
+                size / (1024 * 1024), self._MEMORY_MAX_ENTRIES,
+            )
+
+            # Load the oversized file (one-time cost)
+            with open(self._memory_fallback_path, "r", encoding="utf-8") as fh:
+                raw = json.load(fh)
+
+            if isinstance(raw, dict):
+                entries = raw.get("entries", [])
+            elif isinstance(raw, list):
+                entries = raw
+            else:
+                entries = []
+
+            if not isinstance(entries, list):
+                entries = []
+
+            trimmed = entries[-self._MEMORY_MAX_ENTRIES:]
+            self._save_local_memory_entries(trimmed)
+            self._logger.info(
+                "[MEMORY] Trimmed memory.json from %d to %d entries",
+                len(entries), len(trimmed),
+            )
+        except Exception as exc:
+            self._logger.error("[MEMORY] Startup trim failed: %s", exc)
+
     def _memory_entries_ref(self) -> Any:
         return self._db.collection("al01_memory").document("entries").collection("entries")
 
@@ -463,8 +522,12 @@ class MemoryManager:
             raise
 
     def _load_local_memory_entries(self) -> List[Dict[str, Any]]:
+        if self._entries_cache is not None:
+            return self._entries_cache
         if not os.path.exists(self._memory_fallback_path):
-            return []
+            self._entries_cache = []
+            self._entry_count = 0
+            return self._entries_cache
         try:
             with open(self._memory_fallback_path, "r", encoding="utf-8") as fh:
                 raw = json.load(fh)
@@ -477,17 +540,29 @@ class MemoryManager:
                 entries = []
 
             if not isinstance(entries, list):
-                return []
-            return [self._sanitize_dict(item) for item in entries if isinstance(item, dict)]
+                self._entries_cache = []
+                self._entry_count = 0
+                return self._entries_cache
+            self._entries_cache = [self._sanitize_dict(item) for item in entries if isinstance(item, dict)]
+            self._entry_count = len(self._entries_cache)
+            return self._entries_cache
         except Exception as exc:
             self._log_fallback_error(exc)
-            return []
+            self._entries_cache = []
+            self._entry_count = 0
+            return self._entries_cache
 
     def _save_local_memory_entries(self, entries: List[Dict[str, Any]]) -> None:
         self._ensure_parent_dir(self._memory_fallback_path)
         clean_entries = [self._sanitize_dict(item) for item in entries if isinstance(item, dict)]
+        # Safety-net cap enforcement (the last gate before disk)
+        if len(clean_entries) > self._MEMORY_MAX_ENTRIES:
+            clean_entries = clean_entries[-self._MEMORY_MAX_ENTRIES:]
         with open(self._memory_fallback_path, "w", encoding="utf-8") as fh:
             json.dump({"entries": clean_entries}, fh, indent=2)
+        # Update cache so subsequent reads avoid disk
+        self._entries_cache = clean_entries
+        self._entry_count = len(clean_entries)
 
     def _firestore_safe(self, value: Dict[str, Any]) -> Dict[str, Any]:
         """JSON round-trip gate: guarantees only Firestore-compatible primitives."""
