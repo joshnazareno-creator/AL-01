@@ -187,8 +187,9 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
                  <span style="color:#6bff6b">Efficiency</span> /
                  <span style="color:#6b6bff">Resilience</span><br>
   <b>Glow</b> = Awareness &nbsp; <b>Rings</b> = Evolutions<br>
-  <b>Flicker</b> = Low Energy &nbsp; <b>👑</b> = Top 3 Fitness<br>
-  <b>⬡</b> = Parent AL-01
+  <b>Vibrate</b> = High Energy &nbsp; <b>💀</b> = Dormant<br>
+  <b>👑</b> = Top 3 Fitness &nbsp; <b>⬡</b> = Parent AL-01<br>
+  <b>Trail</b> = Energy Particles &nbsp; <b>Heartbeat</b> = Alive pulse
 </div>
 <a id="back-link" href="/">← Dashboard</a>
 <div id="pool-label">🌍 Pool</div>
@@ -203,13 +204,15 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
   const PADDING = 60;
   const GLOW_THRESHOLD = 0.5;
   const PULSE_INTENSITY = 0.06;
-  const FLICKER_THRESHOLD = 0.15;
+  const FLICKER_THRESHOLD = 0.70;
   const EVO_RING_INTERVAL = 250;
   const MAX_EVO_RINGS = 3;
   const LEADER_COUNT = 3;
   const HOVER_REPULSE_RADIUS = 120;
   const HOVER_REPULSE_FORCE = 30;
   const AURA_PARTICLE_COUNT = 60;
+  const TRAIL_MAX = 8;
+  const HEARTBEAT_PERIOD = 1.2;
 
   /* ================= DOM REFS ================= */
   const canvas = document.getElementById('canvas');
@@ -312,7 +315,9 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
         circles[i] = {x: tx, y: ty, targetX: tx, targetY: ty,
                        r: r, targetR: r, color: c, data: o,
                        shimmerPhase: Math.random() * Math.PI * 2,
-                       crownAngle: Math.random() * Math.PI * 2};
+                       crownAngle: Math.random() * Math.PI * 2,
+                       trail: [],
+                       heartbeatPhase: Math.random() * Math.PI * 2};
       }
     }
     circles.length = n;
@@ -495,13 +500,19 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       const pulse = 1.0 + PULSE_INTENSITY * Math.sin(time * energyFactor);
       let drawR = Math.max(3, c.r * pulse);
 
-      // 4. Energy Stress Flicker
+      // 4. High-Energy Vibration — organisms buzz with excess energy
       let flickerOffsetX = 0, flickerOffsetY = 0, flickerAlpha = 1.0;
-      if(energy < FLICKER_THRESHOLD && energy > 0){
-        const severity = 1 - (energy / FLICKER_THRESHOLD);
-        flickerOffsetX = (Math.random() - 0.5) * severity * 3;
-        flickerOffsetY = (Math.random() - 0.5) * severity * 3;
-        flickerAlpha = 0.7 + Math.random() * 0.3 * (1 - severity * 0.4);
+      if(energy > FLICKER_THRESHOLD){
+        const intensity = (energy - FLICKER_THRESHOLD) / (1 - FLICKER_THRESHOLD);
+        flickerOffsetX = (Math.random() - 0.5) * intensity * 4;
+        flickerOffsetY = (Math.random() - 0.5) * intensity * 4;
+        flickerAlpha = 1.0;  // full brightness — they're thriving
+      }
+
+      // Dormant organisms: grey desaturated, low alpha
+      let isDormant = o.state === 'dormant';
+      if(isDormant){
+        flickerAlpha = 0.35 + 0.05 * Math.sin(time * 0.8);
       }
 
       const cx = c.x + flickerOffsetX;
@@ -542,10 +553,76 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       ctx.fillStyle = shimGrad;
       ctx.fill();
 
-      // Main circle body
+      // Energy trail particles — emit from high-energy organisms
+      if(energy > 0.5 && !isDormant){
+        const emitChance = energy * 0.4;
+        if(Math.random() < emitChance){
+          c.trail.push({
+            x: cx + (Math.random()-0.5)*drawR*0.6,
+            y: cy + (Math.random()-0.5)*drawR*0.6,
+            vx: (Math.random()-0.5)*12,
+            vy: (Math.random()-0.5)*12 - 8,
+            life: 1.0,
+            size: 1 + Math.random()*2.5
+          });
+          if(c.trail.length > TRAIL_MAX) c.trail.shift();
+        }
+      }
+      // Draw + update trail particles
+      for(let p = c.trail.length - 1; p >= 0; p--){
+        const pt = c.trail[p];
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.vy += 15 * dt;  // gravity
+        pt.life -= dt * 1.5;
+        if(pt.life <= 0){ c.trail.splice(p, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = pt.life * 0.6 * opacity;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.size * pt.life, 0, Math.PI*2);
+        ctx.fillStyle = 'rgb('+c.color.r+','+c.color.g+','+c.color.b+')';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Heartbeat ring — rhythmic expanding ring
+      if(!isDormant){
+        c.heartbeatPhase = (c.heartbeatPhase || 0) + dt / HEARTBEAT_PERIOD * Math.PI * 2;
+        const hbWave = Math.pow(Math.max(0, Math.sin(c.heartbeatPhase)), 4);
+        if(hbWave > 0.01){
+          ctx.save();
+          ctx.beginPath();
+          const hbR = drawR + hbWave * 14;
+          ctx.arc(cx, cy, hbR, 0, Math.PI*2);
+          ctx.strokeStyle = 'rgba('+c.color.r+','+c.color.g+','+c.color.b+','+(hbWave*0.3)+')';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // Main circle body — gradient fill for depth
+      const bodyGrad = ctx.createRadialGradient(
+        cx - drawR * 0.3, cy - drawR * 0.3, drawR * 0.1,
+        cx, cy, drawR
+      );
+      if(isDormant){
+        bodyGrad.addColorStop(0, 'rgba(120,120,120,0.6)');
+        bodyGrad.addColorStop(1, 'rgba(60,60,60,0.4)');
+      } else {
+        const br = Math.min(255, c.color.r + 60);
+        const bg = Math.min(255, c.color.g + 60);
+        const bb = Math.min(255, c.color.b + 60);
+        bodyGrad.addColorStop(0, 'rgb('+br+','+bg+','+bb+')');
+        bodyGrad.addColorStop(0.7, c.color.str);
+        const dr = Math.max(0, c.color.r - 40);
+        const dg = Math.max(0, c.color.g - 40);
+        const db = Math.max(0, c.color.b - 40);
+        bodyGrad.addColorStop(1, 'rgb('+dr+','+dg+','+db+')');
+      }
       ctx.beginPath();
       ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
-      ctx.fillStyle = c.color.str;
+      ctx.fillStyle = bodyGrad;
       ctx.fill();
 
       // Inner highlight (specular)
@@ -553,18 +630,43 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
         cx - drawR * 0.25, cy - drawR * 0.25, 0,
         cx, cy, drawR
       );
-      hlGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
-      hlGrad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
-      hlGrad.addColorStop(1, 'rgba(0,0,0,0.1)');
+      hlGrad.addColorStop(0, 'rgba(255,255,255,0.18)');
+      hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+      hlGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
       ctx.beginPath();
       ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
       ctx.fillStyle = hlGrad;
       ctx.fill();
 
+      // Fitness glow border — brighter outline for fitter organisms
+      if(!isDormant && (o.fitness||0) > 0.3){
+        const fitGlow = Math.min(1, ((o.fitness||0) - 0.3) / 0.7);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, drawR + 1, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(63,185,80,'+(fitGlow*0.5)+')';
+        ctx.lineWidth = 1.5 + fitGlow;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Dormant skull marker
+      if(isDormant){
+        ctx.save();
+        ctx.font = Math.max(10, drawR*0.7)+'px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = 0.6;
+        ctx.fillText('\uD83D\uDC80', cx, cy);  // 💀
+        ctx.restore();
+      }
+
       // Parent marker — hexagon outline
       if(o.is_parent){
-        ctx.strokeStyle = '#f0f6fc';
+        ctx.strokeStyle = '#58a6ff';
         ctx.lineWidth = 2;
+        ctx.shadowColor = '#58a6ff';
+        ctx.shadowBlur = 6;
         ctx.beginPath();
         const hr = drawR + 4;
         for(let s = 0; s < 6; s++){
@@ -575,6 +677,7 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
         }
         ctx.closePath();
         ctx.stroke();
+        ctx.shadowBlur = 0;
       }
 
       // 8. Leader Crown System

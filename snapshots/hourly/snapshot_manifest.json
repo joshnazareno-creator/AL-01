@@ -630,5 +630,157 @@
     "label": "auto",
     "checksum": "b1677f59e3f6b0262a44963bcd82c78f8449c3fab66c0dfdb18fb6e3dc686308",
     "size_bytes": 24441
+  },
+  {
+    "filename": "snapshot_20260307T003856Z.json",
+    "timestamp": "2026-03-07T00:38:56.654944+00:00",
+    "timestamp_unix": 1772843936.654944,
+    "label": "auto",
+    "checksum": "856dd49f15a9e595bc2b047e4711f2508de76a778112e828e85b1f96f8fa138f",
+    "size_bytes": 24256
+  },
+  {
+    "filename": "snapshot_20260307T025142Z.json",
+    "timestamp": "2026-03-07T02:51:42.276647+00:00",
+    "timestamp_unix": 1772851902.276647,
+    "label": "shutdown",
+    "checksum": "7019d2b5638aef0d179d6a0609ed9d5849f124173957369f17c01870d03f8e03",
+    "size_bytes": 6690
+  },
+  {
+    "filename": "snapshot_20260308T010008Z.json",
+    "timestamp": "2026-03-08T01:00:08.900371+00:00",
+    "timestamp_unix": 1772931608.900371,
+    "label": "auto",
+    "checksum": "b4725a89c063f020357e967be91ab3641d9e79418b33182f14a9f57aed2fba69",
+    "size_bytes": 6573
+  },
+  {
+    "filename": "snapshot_20260308T020008Z.json",
+    "timestamp": "2026-03-08T02:00:08.925585+00:00",
+    "timestamp_unix": 1772935208.925585,
+    "label": "auto",
+    "checksum": "bd3da18df25a8a295a6ed17742b66a1f536e548402450f75b8347a5a60f7f30f",
+    "size_bytes": 6679
+  },
+  {
+    "filename": "snapshot_20260308T030008Z.json",
+    "timestamp": "2026-03-08T03:00:08.951043+00:00",
+    "timestamp_unix": 1772938808.951043,
+    "label": "auto",
+    "checksum": "e03114ce84be0da438f099b3c7afc00fccc9ef2ef3bb5890a88cd39dd2653018",
+    "size_bytes": 6455
+  },
+  {
+    "filename": "snapshot_20260308T040008Z.json",
+    "timestamp": "2026-03-08T04:00:08.980527+00:00",
+    "timestamp_unix": 1772942408.980527,
+    "label": "auto",
+    "checksum": "fe3fc2db1dea6ceb842a6faebaad7b4b9a05af10585d6542944b67d3eb481a69",
+    "size_bytes": 6688
+  },
+  {
+    "filename": "snapshot_20260308T050009Z.json",
+    "timestamp": "2026-03-08T05:00:09.008608+00:00",
+    "timestamp_unix": 1772946009.008608,
+    "label": "auto",
+    "checksum": "f020a9460c88ae71e86ae30366a3381e16344638c46eced7a58143bd525bc804",
+    "size_bytes": 6790
+  },
+  {
+    "filename": "snapshot_20260308T060009Z.json",
+    "timestamp": "2026-03-08T06:00:09.032042+00:00",
+    "timestamp_unix": 1772949609.032042,
+    "label": "auto",
+    "checksum": "5c856ee3138a31d3efb2b760cd01b0737bf1cd2dc1136f06d83675bdeb1356bc",
+    "size_bytes": 6854
+  },
+  {
+    "filename": "snapshot_20260308T070009Z.json",
+    "timestamp": "2026-03-08T07:00:09.060316+00:00",
+    "timestamp_unix": 1772953209.060316,
+    "label": "auto",
+    "checksum": "684b9713bd6a125b83d9f1974746270a4f13624894507cceb756e44f4e94aed4",
+    "size_bytes": 6667
+  },
+  {
+    "filename": "snapshot_20260308T080009Z.json",
+    "timestamp": "2026-03-08T08:00:09.084122+00:00",
+    "timestamp_unix": 1772956809.084122,
+    "label": "auto",
+    "checksum": "cd34da27b76ee6a5e398caebf29fda2cab04db9b0276b69d922586b383c99bdc",
+    "size_bytes": 6566
+  },
+  {
+    "filename": "snapshot_20260308T090009Z.json",
+    "timestamp": "2026-03-08T09:00:09.107690+00:00",
+    "timestamp_unix": 1772960409.10769,
+    "label": "auto",
+    "checksum": "dc18f4f4a18119a9bbbf4095ec1d50eef10eabce73094353447892535f95dfbb",
+    "size_bytes": 6577
+  },
+  {
+    "filename": "snapshot_20260308T100009Z.json",
+    "timestamp": "2026-03-08T10:00:09.133079+00:00",
+    "timestamp_unix": 1772964009.133079,
+    "label": "auto",
+    "checksum": "7e2d96b7567f110374823571a0e1292c1cd0454aefd4bd931af98f39e27fde18",
+    "size_bytes": 6567
+  },
+  {
+    "filename": "snapshot_20260308T220404Z.json",
+    "timestamp": "2026-03-08T22:04:04.678809+00:00",
+    "timestamp_unix": 1773007444.678809,
+    "label": "shutdown",
+    "checksum": "2d179a25f35b6190f240ff622b9c44a408b8f5ec7a28304802724e95060f4e11",
+    "size_bytes": 6258
+  },
+  {
+    "filename": "snapshot_20260308T230533Z.json",
+    "timestamp": "2026-03-08T23:05:33.531380+00:00",
+    "timestamp_unix": 1773011133.53138,
+    "label": "auto",
+    "checksum": "082977f8b075e9f966b2dc4fe87549623bac879f4186131f0e109667c8956239",
+    "size_bytes": 6770
+  },
+  {
+    "filename": "snapshot_20260309T000533Z.json",
+    "timestamp": "2026-03-09T00:05:33.566366+00:00",
+    "timestamp_unix": 1773014733.566366,
+    "label": "auto",
+    "checksum": "9a01848a441ccb1263109f14862c833c8d8b2dda30c353b67ead5039eade75f0",
+    "size_bytes": 6456
+  },
+  {
+    "filename": "snapshot_20260309T010534Z.json",
+    "timestamp": "2026-03-09T01:05:34.650050+00:00",
+    "timestamp_unix": 1773018334.65005,
+    "label": "auto",
+    "checksum": "c861e8ea5714b86b49571df589be52616b50e3408bd086171e52b720f28f2620",
+    "size_bytes": 7781
+  },
+  {
+    "filename": "snapshot_20260309T013450Z.json",
+    "timestamp": "2026-03-09T01:34:50.937419+00:00",
+    "timestamp_unix": 1773020090.937419,
+    "label": "shutdown",
+    "checksum": "082376c2b8a1ad07b39a5838d550f54f72b8a7f0e2552504f4d163ca939ae48c",
+    "size_bytes": 10228
+  },
+  {
+    "filename": "snapshot_20260309T014243Z.json",
+    "timestamp": "2026-03-09T01:42:43.740876+00:00",
+    "timestamp_unix": 1773020563.740876,
+    "label": "shutdown",
+    "checksum": "578d81be4c0efae1a2764a9b0b47ab1287d6e50c05e92953c87fd6c9e5dc171c",
+    "size_bytes": 11287
+  },
+  {
+    "filename": "snapshot_20260309T021029Z.json",
+    "timestamp": "2026-03-09T02:10:29.921731+00:00",
+    "timestamp_unix": 1773022229.921731,
+    "label": "shutdown",
+    "checksum": "4de0f53277f583d5e570bb2f823ad5612a8212a7fdf7218f34f5e7c8bccef705",
+    "size_bytes": 11128
   }
 ]

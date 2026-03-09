@@ -1,3 +1,11 @@
+# Runtime data
+data/
+*.jsonl
+*.log
+*.db
+*.db-journal
+
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -6,19 +14,14 @@ dist/
 build/
 .eggs/
 *.egg
+.venv/
+
+# Secrets
 ServiceAccountKey.json
 .env
-al01.db
-*.db-journal
-data/life_log.jsonl
-data/head.json
-data/snapshots/
-data/policy.json
-.env
-al01.db
-*.db-journal
+
+# Simulation state
 population.json
-backups/
-al01.log
 state.json
 memory.json
+backups/

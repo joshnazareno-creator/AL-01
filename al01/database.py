@@ -4,6 +4,7 @@ Tables
 ------
 - ``interactions`` — structured interaction log (survives restarts)
 - ``growth_snapshots`` — periodic growth metric snapshots
+- ``memory_events`` — long-term archive of organism memory events (v3.21)
 - ``metadata`` — key/value store for identity, version, first-run timestamp
 """
 
@@ -45,6 +46,16 @@ CREATE TABLE IF NOT EXISTS growth_snapshots (
 );
 """
 
+_CREATE_MEMORY_EVENTS = """
+CREATE TABLE IF NOT EXISTS memory_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp  TEXT    NOT NULL,
+    event_type TEXT    NOT NULL,
+    payload    TEXT,
+    source     TEXT
+);
+"""
+
 _CREATE_METADATA = """
 CREATE TABLE IF NOT EXISTS metadata (
     key   TEXT PRIMARY KEY,
@@ -58,6 +69,7 @@ class Database:
 
     def __init__(self, db_path: str = "al01.db") -> None:
         self._db_path = os.path.abspath(db_path)
+        os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
         self._lock = threading.RLock()
         self._ensure_schema()
         logger.info("[DB] SQLite database ready at %s", self._db_path)
@@ -79,12 +91,19 @@ class Database:
             try:
                 conn.execute(_CREATE_INTERACTIONS)
                 conn.execute(_CREATE_GROWTH_SNAPSHOTS)
+                conn.execute(_CREATE_MEMORY_EVENTS)
                 conn.execute(_CREATE_METADATA)
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_interactions_ts ON interactions(timestamp);"
                 )
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_growth_ts ON growth_snapshots(timestamp);"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_memevents_ts ON memory_events(timestamp);"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_memevents_type ON memory_events(event_type);"
                 )
                 conn.commit()
             finally:
@@ -309,6 +328,101 @@ class Database:
             finally:
                 conn.close()
         return row["value"] if row else None
+
+    # ------------------------------------------------------------------
+    # Memory events (v3.21 long-term archive)
+    # ------------------------------------------------------------------
+
+    def write_memory_event(
+        self,
+        *,
+        timestamp: str,
+        event_type: str,
+        payload: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> int:
+        """Archive a single memory event to SQLite."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                cur = conn.execute(
+                    """INSERT INTO memory_events
+                       (timestamp, event_type, payload, source)
+                       VALUES (?, ?, ?, ?)""",
+                    (timestamp, event_type, payload, source),
+                )
+                conn.commit()
+                row_id = cur.lastrowid
+            finally:
+                conn.close()
+        return row_id  # type: ignore[return-value]
+
+    def write_memory_events_batch(
+        self,
+        events: List[Dict[str, Any]],
+    ) -> int:
+        """Archive a batch of memory events to SQLite. Returns count inserted."""
+        if not events:
+            return 0
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = [
+                    (
+                        e.get("timestamp", _utc_now()),
+                        e.get("event_type", "event"),
+                        json.dumps(e.get("payload"), default=str) if e.get("payload") is not None else None,
+                        e.get("source"),
+                    )
+                    for e in events
+                ]
+                conn.executemany(
+                    """INSERT INTO memory_events
+                       (timestamp, event_type, payload, source)
+                       VALUES (?, ?, ?, ?)""",
+                    rows,
+                )
+                conn.commit()
+                count = len(rows)
+            finally:
+                conn.close()
+        return count
+
+    def recent_memory_events(
+        self,
+        n: int = 50,
+        event_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return the most recent *n* memory events (oldest-first)."""
+        safe_n = max(1, int(n))
+        with self._lock:
+            conn = self._connect()
+            try:
+                if event_type:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_events WHERE event_type = ? ORDER BY id DESC LIMIT ?",
+                        (event_type, safe_n),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memory_events ORDER BY id DESC LIMIT ?",
+                        (safe_n,),
+                    ).fetchall()
+            finally:
+                conn.close()
+        return [_row_to_dict(r) for r in reversed(rows)]
+
+    def memory_event_count(self) -> int:
+        """Total number of archived memory events."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS cnt FROM memory_events"
+                ).fetchone()
+            finally:
+                conn.close()
+        return row["cnt"] if row else 0
 
     def close(self) -> None:
         """No persistent connection to close (connections are per-call)."""

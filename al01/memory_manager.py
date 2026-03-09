@@ -5,6 +5,7 @@ import enum
 import hashlib
 import json
 import logging
+import logging.handlers
 import os
 import tempfile
 import threading
@@ -26,17 +27,24 @@ class MemoryManager:
     Firestore Spark free-tier quotas (20 K writes / day).
 
     v2.0: Daily state backups, exponential retry, file logging.
+    v3.21: Bounded memory — cap at 1000 entries, SQLite long-term archive,
+           atomic writes, write-throttling, auto-trim at 10 MB.
     """
 
     _FIRESTORE_SYNC_INTERVAL: float = 30.0  # seconds between Firestore syncs
     _FIRESTORE_MAX_RETRIES: int = 3
     _BACKUP_INTERVAL: float = 86400.0  # 24 hours
-    _MEMORY_MAX_ENTRIES: int = 5000  # cap local memory.json to avoid multi-GB bloat
+    _MEMORY_MAX_ENTRIES: int = 1000  # v3.21: rolling window (was 5000)
 
     # Event types that are local-only (never sent to Firestore)
     _LOCAL_ONLY_EVENTS: frozenset[str] = frozenset({
         "pulse", "loop_cycle",
     })
+
+    # v3.21: Write throttling — batch this many memory writes in-memory
+    # before flushing to disk.  Reduces I/O from "every write" to periodic.
+    _MEMORY_FLUSH_INTERVAL: int = 10  # flush to disk every N writes
+    _MEMORY_FLUSH_SECONDS: float = 60.0  # …or every 60 s, whichever comes first
 
     def __init__(
         self,
@@ -68,16 +76,18 @@ class MemoryManager:
         self._fs_writes_date: str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         # Daily backup tracking
-        self._backup_dir = os.path.join(data_dir, "backups")
+        self._backup_dir = os.path.join(os.path.abspath(data_dir), "backups")
         os.makedirs(self._backup_dir, exist_ok=True)
         self._last_backup: float = 0.0
 
-        # File logger (al01.log)
+        # File logger (al01.log) — v3.22: absolute path + rotation
         self._file_logger = logging.getLogger("al01.file")
-        log_path = os.path.join(data_dir, "al01.log")
-        if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '') == os.path.abspath(log_path)
+        log_path = os.path.join(os.path.abspath(data_dir), "al01.log")
+        if not any(isinstance(h, logging.handlers.RotatingFileHandler) and getattr(h, 'baseFilename', '') == os.path.abspath(log_path)
                    for h in self._file_logger.handlers):
-            fh = logging.FileHandler(log_path, encoding="utf-8")
+            fh = logging.handlers.RotatingFileHandler(
+                log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8",
+            )
             fh.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s"))
             self._file_logger.addHandler(fh)
             self._file_logger.setLevel(logging.INFO)
@@ -90,12 +100,27 @@ class MemoryManager:
         self._entries_cache: Optional[List[Dict[str, Any]]] = None
         self._entry_count: int = 0
 
+        # v3.21: Write-throttle bookkeeping
+        self._pending_writes: int = 0  # writes since last disk flush
+        self._last_flush_time: float = time.monotonic()
+
         # Startup trim: if memory.json exceeds a sane threshold, truncate
         # to _MEMORY_MAX_ENTRIES to break the "too-big-to-load" deadlock.
         self._startup_trim_if_needed()
 
     def firestore_enabled(self) -> bool:
         return self._use_firestore
+
+    def flush_memory(self) -> None:
+        """Flush any pending in-memory entries to disk.
+
+        Call this on shutdown to ensure no buffered writes are lost.
+        """
+        with self._lock:
+            if self._pending_writes > 0 and self._entries_cache is not None:
+                self._save_local_memory_entries(self._entries_cache)
+                self._pending_writes = 0
+                self._last_flush_time = time.monotonic()
 
     # ------------------------------------------------------------------
     # Throttled Firestore replication
@@ -258,10 +283,37 @@ class MemoryManager:
             local_payload = self._normalize_event(event, source="local")
             local_entries = self._load_local_memory_entries()
             local_entries.append(local_payload)
-            # Trim to cap — keep newest entries only
+            # Trim to cap — keep newest entries only (v3.21: 1000 rolling window)
             if len(local_entries) > self._MEMORY_MAX_ENTRIES:
                 local_entries = local_entries[-self._MEMORY_MAX_ENTRIES:]
-            self._save_local_memory_entries(local_entries)
+            # Update in-memory cache immediately
+            self._entries_cache = local_entries
+            self._entry_count = len(local_entries)
+            self._pending_writes += 1
+
+            # v3.21: Flush to disk only when batch threshold or time threshold is reached
+            now = time.monotonic()
+            should_flush = (
+                self._pending_writes >= self._MEMORY_FLUSH_INTERVAL
+                or (now - self._last_flush_time) >= self._MEMORY_FLUSH_SECONDS
+            )
+            if should_flush:
+                self._save_local_memory_entries(local_entries)
+                self._pending_writes = 0
+                self._last_flush_time = now
+
+        # v3.21: Archive to SQLite for long-term storage
+        try:
+            self._database.write_memory_event(
+                timestamp=local_payload.get("timestamp", self._utc_now()),
+                event_type=local_payload.get("event_type", "event"),
+                payload=json.dumps(local_payload.get("payload"), default=str)
+                if local_payload.get("payload") is not None
+                else None,
+                source="local",
+            )
+        except Exception as exc:
+            self._logger.warning("[MEMORY] SQLite archive failed: %s", exc)
 
         # Only replicate significant events to Firestore (skip noise)
         if self._use_firestore:
@@ -422,14 +474,18 @@ class MemoryManager:
             self._use_firestore = False
             self._log_fallback_error(exc)
 
-    _MEMORY_FILE_SIZE_THRESHOLD: int = 50 * 1024 * 1024  # 50 MB
+    _MEMORY_FILE_SIZE_THRESHOLD: int = 10 * 1024 * 1024  # v3.21: 10 MB (was 50 MB)
+    _MEMORY_NUCLEAR_THRESHOLD: int = 500 * 1024 * 1024  # 500 MB — too large to parse
 
     def _startup_trim_if_needed(self) -> None:
-        """If memory.json exceeds 50 MB, stream-read & trim to cap.
+        """If memory.json exceeds 50 MB, trim to cap.
 
         This breaks the self-reinforcing deadlock where the file is too
         large for ``_load_local_memory_entries`` to complete, so the
         5000-entry cap inside ``write_memory`` can never execute.
+
+        Files above 500 MB are replaced outright (parsing them would
+        OOM or freeze the process for minutes/hours).
         """
         try:
             if not os.path.exists(self._memory_fallback_path):
@@ -444,7 +500,18 @@ class MemoryManager:
                 size / (1024 * 1024), self._MEMORY_MAX_ENTRIES,
             )
 
-            # Load the oversized file (one-time cost)
+            # Files above the nuclear threshold cannot be parsed in
+            # reasonable time/memory — reset to empty and move on.
+            if size > self._MEMORY_NUCLEAR_THRESHOLD:
+                self._logger.warning(
+                    "[MEMORY] memory.json is %.1f GB — too large to parse, "
+                    "resetting to empty",
+                    size / (1024 * 1024 * 1024),
+                )
+                self._save_local_memory_entries([])
+                return
+
+            # Load the oversized file (one-time cost, < 500 MB)
             with open(self._memory_fallback_path, "r", encoding="utf-8") as fh:
                 raw = json.load(fh)
 
@@ -459,6 +526,16 @@ class MemoryManager:
                 entries = []
 
             trimmed = entries[-self._MEMORY_MAX_ENTRIES:]
+
+            # v3.22: Also truncate oversized payloads to prevent
+            # writing back entries that individually weigh megabytes
+            # (caused by the reflection-doubling bug fixed in v3.22).
+            for entry in trimmed:
+                if isinstance(entry, dict) and "payload" in entry:
+                    p = json.dumps(entry["payload"], default=str)
+                    if len(p) > self._MAX_PAYLOAD_BYTES:
+                        entry["payload"] = {"_truncated": True, "summary": p[:self._MAX_PAYLOAD_BYTES]}
+
             self._save_local_memory_entries(trimmed)
             self._logger.info(
                 "[MEMORY] Trimmed memory.json from %d to %d entries",
@@ -473,6 +550,10 @@ class MemoryManager:
     def _state_ref(self) -> Any:
         return self._db.collection("al01_state").document("core")
 
+    # v3.22: Hard cap on per-event payload size (bytes of JSON representation).
+    # Prevents exponential blow-up from recursive reflection summaries.
+    _MAX_PAYLOAD_BYTES: int = 10_000
+
     def _normalize_event(self, event: Dict[str, Any], source: str) -> Dict[str, Any]:
         clean_event = self._sanitize_dict(event)
         event_type = str(clean_event.get("event_type") or clean_event.get("type") or "event")
@@ -486,6 +567,11 @@ class MemoryManager:
             }
 
         clean_payload = self._sanitize_value(payload)
+
+        # v3.22: Truncate oversized payloads before they hit disk
+        serialized = json.dumps(clean_payload, default=str)
+        if len(serialized) > self._MAX_PAYLOAD_BYTES:
+            clean_payload = {"_truncated": True, "summary": serialized[:self._MAX_PAYLOAD_BYTES]}
 
         return {
             "timestamp": clean_event.get("timestamp") or self._utc_now(),
@@ -529,6 +615,18 @@ class MemoryManager:
             self._entry_count = 0
             return self._entries_cache
         try:
+            # Safety: never attempt to parse files above the nuclear threshold
+            fsize = os.path.getsize(self._memory_fallback_path)
+            if fsize > self._MEMORY_NUCLEAR_THRESHOLD:
+                self._logger.warning(
+                    "[MEMORY] memory.json is %.1f GB — too large to load, "
+                    "returning empty",
+                    fsize / (1024 * 1024 * 1024),
+                )
+                self._entries_cache = []
+                self._entry_count = 0
+                return self._entries_cache
+
             with open(self._memory_fallback_path, "r", encoding="utf-8") as fh:
                 raw = json.load(fh)
 
@@ -558,8 +656,18 @@ class MemoryManager:
         # Safety-net cap enforcement (the last gate before disk)
         if len(clean_entries) > self._MEMORY_MAX_ENTRIES:
             clean_entries = clean_entries[-self._MEMORY_MAX_ENTRIES:]
-        with open(self._memory_fallback_path, "w", encoding="utf-8") as fh:
-            json.dump({"entries": clean_entries}, fh, indent=2)
+        # v3.21: Atomic write via tmpfile + rename (crash-safe)
+        data = json.dumps({"entries": clean_entries}, indent=2)
+        dir_part = os.path.dirname(self._memory_fallback_path) or "."
+        fd, tmp_path = tempfile.mkstemp(dir=dir_part, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(data)
+            os.replace(tmp_path, self._memory_fallback_path)
+        except BaseException:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
         # Update cache so subsequent reads avoid disk
         self._entries_cache = clean_entries
         self._entry_count = len(clean_entries)

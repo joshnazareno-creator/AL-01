@@ -15,6 +15,9 @@ import hashlib
 import json
 import logging
 import os
+
+from al01 import storage
+from al01.storage import rotate_jsonl
 import random
 import time
 from dataclasses import dataclass, field
@@ -110,7 +113,7 @@ class ExperimentProtocol:
         data_dir: str = ".",
     ) -> None:
         self._config = config or ExperimentConfig()
-        self._data_dir = data_dir
+        self._data_dir = os.path.abspath(data_dir)
 
         # Auto-generate experiment ID if not set
         if not self._config.experiment_id:
@@ -354,6 +357,7 @@ class ExperimentProtocol:
 
     def _append_log(self, record: Dict[str, Any]) -> None:
         try:
+            rotate_jsonl(self._log_path)
             with open(self._log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, sort_keys=True, default=str) + "\n")
         except Exception as exc:

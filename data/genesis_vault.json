@@ -11,7 +11,7 @@
   "mutation_delta": 0.1,
   "description": "Pristine genome template \u2014 used for extinction recovery.",
   "created_at": "2026-02-27T10:02:32.335961+00:00",
-  "reseed_count": 2,
+  "reseed_count": 3,
   "reseed_history": [
     {
       "event": "reseed",
@@ -45,6 +45,23 @@
         "creativity": 0.5
       },
       "child_fitness": 0.5119,
+      "reason": "population_extinct"
+    },
+    {
+      "event": "reseed",
+      "reseed_number": 3,
+      "organism_id": "AL-01-child-1",
+      "seed_name": "AL-01 Genesis Seed",
+      "cycle": 206,
+      "timestamp": "2026-03-09T00:57:21.475278+00:00",
+      "seed_traits": {
+        "adaptability": 0.5,
+        "energy_efficiency": 0.5,
+        "resilience": 0.5,
+        "perception": 0.5,
+        "creativity": 0.5
+      },
+      "child_fitness": 0.501813,
       "reason": "population_extinct"
     }
   ]

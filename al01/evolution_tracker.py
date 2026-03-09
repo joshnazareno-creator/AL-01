@@ -17,6 +17,8 @@ import io
 import json
 import logging
 import os
+
+from al01.storage import rotate_jsonl
 import statistics
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -423,6 +425,7 @@ class EvolutionTracker:
 
     def _append_log(self, record: Dict[str, Any]) -> None:
         try:
+            rotate_jsonl(self._log_path)
             with open(self._log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, sort_keys=True, default=str) + "\n")
         except Exception as exc:

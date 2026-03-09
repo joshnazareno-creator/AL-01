@@ -298,7 +298,7 @@ class TestStagnationDetection:
             org._novelty_history = [0.01] * 20
             org._global_cycle = 5000
             org.novelty_stagnation_check()
-            assert org._autonomy.mode == "exploration"  # type: ignore[attr-defined]
+            assert org._autonomy.exploration_mode is True
         finally:
             _cleanup_handlers()
 

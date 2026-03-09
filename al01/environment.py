@@ -187,6 +187,20 @@ class EnvironmentConfig:
     shock_entropy_spike: float = 0.25
     """Entropy pressure added during a shock event."""
 
+    # v3.23: Population-scaled regeneration
+    population_regen_bonus: float = 0.5
+    """Extra regen per surviving organism — prevents extinction cascades."""
+
+    # v3.23: Extinction prevention guard
+    extinction_prevention_regen_multiplier: float = 3.0
+    """Regen multiplier when population = 1 (last survivor)."""
+    extinction_prevention_pool_boost: float = 100.0
+    """Flat pool energy injection when population = 1."""
+
+    # v3.23: Conservation mode
+    conservation_metabolic_fraction: float = 0.3
+    """Organisms in conservation mode use this fraction of normal metabolic cost."""
+
     # Seeded randomness
     rng_seed: Optional[int] = None
 
@@ -679,11 +693,40 @@ class Environment:
             )
         return actual
 
-    def smart_regenerate(self, avg_efficiency: float = 0.5) -> float:
+    def extinction_prevention_regenerate(self, population_size: int) -> float:
+        """v3.23: Boost resource regeneration when population reaches 1.
+
+        When only one organism remains, temporarily boosts resource
+        availability to prevent permanent extinction.  Applies both a
+        regen multiplier and a flat pool injection.
+
+        Returns extra energy regenerated (0.0 if not triggered).
+        """
+        if population_size > 1:
+            return 0.0
+        cfg = self._config
+        base_regen = cfg.resource_regen_rate
+        boost = base_regen * (cfg.extinction_prevention_regen_multiplier - 1.0)
+        boost += cfg.extinction_prevention_pool_boost
+        old_pool = self._resource_pool
+        self._resource_pool = min(cfg.resource_pool_max, self._resource_pool + boost)
+        actual = self._resource_pool - old_pool
+        if actual > 0:
+            logger.info(
+                "[ENV] Extinction prevention: +%.1f energy (pop=%d, pool=%.1f)",
+                actual, population_size, self._resource_pool,
+            )
+        return actual
+
+    def smart_regenerate(self, avg_efficiency: float = 0.5,
+                         population_size: int = 1) -> float:
         """v3.13: Regenerate pool with overuse damping & efficiency scaling.
 
         *avg_efficiency* should be the mean efficiency ratio across the
         population (0–1).  Higher efficiency → faster regeneration.
+
+        v3.23: *population_size* adds per-organism bonus to prevent
+        extinction cascades — larger populations regenerate slightly more.
 
         Returns the actual energy regenerated this tick.
         """
@@ -702,6 +745,11 @@ class Environment:
         damping = max(0.2, damping)
 
         regen = base_regen * eff_factor * damping
+
+        # v3.23: Population-scaled bonus — prevents extinction cascades
+        pop_bonus = max(1, population_size) * cfg.population_regen_bonus
+        regen += pop_bonus
+
         old_pool = self._resource_pool
         self._resource_pool = min(cfg.resource_pool_max, self._resource_pool + regen)
         return self._resource_pool - old_pool

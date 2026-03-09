@@ -291,6 +291,8 @@ class TestOrganismPoolIntegration:
         org = _make_organism(tmp)
         # Deplete pool partially so regen is visible
         org._environment._resource_pool = 500.0
+        # Disable random scarcity events so they don't mask the regen gain
+        org._environment.config.scarcity_probability = 0.0
         pool_before = org._environment.resource_pool
         org.environment_tick()
         pool_after = org._environment.resource_pool

@@ -14,15 +14,20 @@ Bootstrap sequence:
   11. Start FastAPI server on port 8000 (background thread)
   12. Enter run_loop (blocks, heartbeat every interval)
   13. On Ctrl+C → graceful shutdown → final persist → exit
+
+v3.22: All paths are absolute (anchored to AL01_BASE_DIR or repo root).
+       No file writes go to C: drive regardless of working directory.
 """
 
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import os
 import sys
 import threading
 
+from al01 import storage
 from al01.api import create_app
 from al01.autonomy import AutonomyConfig, AutonomyEngine
 from al01.brain import Brain
@@ -41,12 +46,12 @@ API_PORT = 8000
 
 
 def _load_dotenv() -> None:
-    """Load .env file from the current directory if it exists."""
-    env_path = os.path.join(os.getcwd(), ".env")
-    if not os.path.exists(env_path):
+    """Load .env file from the base directory (not cwd)."""
+    env_file = storage.env_path()
+    if not os.path.exists(env_file):
         return
     try:
-        with open(env_path, "r", encoding="utf-8") as fh:
+        with open(env_file, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
@@ -72,8 +77,11 @@ def _configure_logging() -> None:
         stream=sys.stdout,
     )
 
-    # File handler — al01.log
-    file_handler = logging.FileHandler("al01.log", encoding="utf-8")
+    # v3.22: Rotating file handler — 10 MB per file, 5 backups (al01.log)
+    log_file = storage.log_path()
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8",
+    )
     file_handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
     file_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(file_handler)
@@ -104,25 +112,42 @@ def main() -> None:
     _configure_logging()
     log = logging.getLogger("al01.main")
     log.info("[BOOT] AL-01 v%s bootstrap starting", VERSION)
+    log.info("[BOOT] Base directory: %s", storage.BASE_DIR)
+
+    # v3.22: Create all storage directories and anchor temp writes
+    storage.ensure_dirs()
+    import tempfile
+    tempfile.tempdir = storage.tmp_dir()
+
+    # v3.22: All paths are absolute — anchored to storage.BASE_DIR
+    base = storage.BASE_DIR
+    data = storage.DATA_DIR
+    os.makedirs(data, exist_ok=True)
 
     # --- 2. Database (SQLite) ---
-    db = Database(db_path="al01.db")
+    # v3.22: Migrate legacy al01.db from repo root → db/ subdirectory
+    _new_db = storage.db_path()
+    _old_db = os.path.join(storage.BASE_DIR, "al01.db")
+    if os.path.exists(_old_db) and not os.path.exists(_new_db):
+        import shutil
+        os.makedirs(os.path.dirname(_new_db), exist_ok=True)
+        shutil.move(_old_db, _new_db)
+        log.info("[BOOT] Migrated database: %s → %s", _old_db, _new_db)
+    db = Database(db_path=_new_db)
 
     # --- 3. VITAL subsystems ---
-    data_dir = "data"
-    os.makedirs(data_dir, exist_ok=True)
-    life_log = LifeLog(data_dir=data_dir, organism_id="AL-01")
-    policy = PolicyManager(data_dir=data_dir)
+    life_log = LifeLog(data_dir=data, organism_id="AL-01")
+    policy = PolicyManager(data_dir=data)
     log.info("[BOOT] VITAL subsystems initialized (LifeLog + Policy)")
 
     # --- 4. MemoryManager ---
     log.info("[BOOT] Initializing MemoryManager")
-    memory = MemoryManager(data_dir=".", database=db)
+    memory = MemoryManager(data_dir=base, database=db)
     backend = "Firestore" if memory.firestore_enabled() else "local JSON"
     log.info("[BOOT] Persistence backend: %s + SQLite", backend)
 
     # --- 5. Population + Brain ---
-    population = Population(data_dir=".", parent_id="AL-01")
+    population = Population(data_dir=base, parent_id="AL-01")
     log.info("[BOOT] Population registry initialized (%d members)", population.size)
 
     ai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -136,7 +161,7 @@ def main() -> None:
         stagnation_window=10,
         stagnation_variance_epsilon=1e-4,
     )
-    autonomy = AutonomyEngine(data_dir=data_dir, config=autonomy_config)
+    autonomy = AutonomyEngine(data_dir=data, config=autonomy_config)
     log.info("[BOOT] Autonomy engine initialized (interval=%d, threshold=%.2f)",
              autonomy_config.decision_interval, autonomy_config.fitness_threshold)
 
@@ -150,13 +175,14 @@ def main() -> None:
         evolve_interval=30,           # every 30 ticks = ~150s at INTERVAL=5
         population_interact_interval=60,  # every 60 ticks = ~300s
         autonomy_interval=10,         # every 10 ticks = ~50s at INTERVAL=5
+        memory_snapshot_interval=100,  # v3.21: tick snapshot every 100 ticks = ~500s
     )
     log.info("[BOOT] Initializing Organism v%s (genome + population + brain)", VERSION)
     # v3.18: Production environment with pool floor for ecosystem stability
     env_cfg = EnvironmentConfig(resource_pool_min_floor=50.0)
     environment = Environment(config=env_cfg)
     organism = Organism(
-        data_dir=".",
+        data_dir=base,
         config=config,
         memory_manager=memory,
         life_log=life_log,
@@ -175,7 +201,7 @@ def main() -> None:
         remote_sync_enabled=memory.firestore_enabled(),
     )
     snapshot_mgr = SnapshotManager(
-        data_dir=".",
+        data_dir=base,
         config=snap_config,
         state_collector=lambda: organism.growth_metrics,
         firestore_client=fs_client,
@@ -185,7 +211,7 @@ def main() -> None:
              int(snap_config.interval_seconds), snap_config.retention_days)
 
     # --- 6c. Genesis Vault (extinction recovery) ---
-    genesis_vault = GenesisVault(data_dir=data_dir)
+    genesis_vault = GenesisVault(data_dir=data)
     organism._genesis_vault = genesis_vault
     log.info("[BOOT] Genesis Vault initialized (reseeds=%d)", genesis_vault.reseed_count)
 
@@ -230,6 +256,7 @@ def main() -> None:
         try:
             organism.record_growth_snapshot()
             organism.shutdown()
+            memory.flush_memory()  # v3.21: flush buffered memory entries to disk
             memory.flush_firestore()
             memory.maybe_daily_backup()
         except (KeyboardInterrupt, Exception) as exc:

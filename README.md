@@ -2,7 +2,7 @@
 
 A persistent, self-evolving digital organism ecosystem with autonomous reproduction, genome evolution, environmental pressure, and a live visual dashboard.
 
-**v3.19** — 1089 tests | 22 modules | 64 API endpoints | Canvas organism visualizer
+**v3.24** — 1227 tests | 23 modules | 64 API endpoints | Canvas organism visualizer
 
 ---
 
@@ -30,11 +30,12 @@ Key properties:
 | **Behavior** | Emergent strategy detection: energy-hoarder, explorer, specialist, generalist, resilient |
 | **Brain** | Optional OpenAI integration for strategic nudges; core logic is fully local and deterministic |
 | **VITAL** | Append-only hash-chain life log with SHA-256 integrity verification |
-| **Persistence** | SQLite primary store, Firestore cloud replication (optional), local JSON fallback (5000-entry cap), hourly snapshots with 30-day retention |
+| **Persistence** | SQLite primary store, Firestore cloud replication (optional), local JSON fallback (1000-entry cap), hourly snapshots with 30-day retention, absolute-path storage anchoring |
+| **Stabilization** | Minimum energy floor with conservation mode, population-scaled resource regeneration, adaptability recovery boost, stress feedback loop, energy-efficiency-weighted metabolism, extinction prevention guard |
 | **Evolution** | Novelty metric (genome distance), stagnation detection, population diversity scoring, evolution dashboard, innovation tracking |
 | **Ecosystem** | Anti-monoculture culling, environmental shock events, dormant organisms, extinction recovery via genesis vault, ecosystem stabilisation (pool floor, energy gates, probability scaling) |
 | **API** | 64 FastAPI endpoints — status, genome, population, lineage, species, fossils, evolution dashboard, novelty, diversity, export/import, experiment control, GPT bridge |
-| **Visual** | Full-screen canvas dashboard with 8 animation systems (pulse, halo, rings, flicker, shimmer, aura, physics, crowns) |
+| **Visual** | Full-screen canvas dashboard with 12 animation systems (pulse, halo, rings, vibration, shimmer, aura, physics, crowns, energy trail, heartbeat, fitness glow, dormant state) |
 
 ---
 
@@ -53,6 +54,7 @@ al01/
   life_log.py          # VITAL — append-only SHA-256 hash-chain log (436 lines)
   evolution_tracker.py # Generation IDs, genome hashing, mutation logs, CSV export (425 lines)
   snapshot_manager.py  # Hourly state snapshots with 30-day retention (411 lines)
+  storage.py           # v3.22: Global storage configuration — absolute paths, JSONL rotation, snapshot cleanup
   genome.py            # 5-trait genome — mutation, trade-offs, soft ceilings (399 lines)
   gpt_bridge.py        # Natural language narration + stimulus injection for GPT (387 lines)
   behavior.py          # Emergent behavior detection + strategy classification (339 lines)
@@ -65,7 +67,7 @@ al01/
   __main__.py          # Boot sequence entrypoint (241 lines)
   __init__.py          # Package re-exports
 
-tests/                 # 28 test files, 1089 tests
+tests/                 # 29 test files, 1089+ tests
   test_alife.py          # Core artificial life tests
   test_genesis_vault.py  # Genesis vault + extinction recovery
   test_gpt_bridge.py     # GPT bridge narration + stimulus
@@ -92,6 +94,11 @@ tests/                 # 28 test files, 1089 tests
   test_v317.py           # v3.17 reproduction safety (500-cycle birth cooldown, idempotency, concurrency guard)
   test_v318.py           # v3.18 ecosystem stabilisation (pool floor, energy gates, probability scaling)
   test_v319.py           # v3.19 fix double mutation in rare reproduction
+  test_v320.py           # v3.20 nuclear threshold for oversized memory.json
+  test_v321.py           # v3.21 bounded memory, SQLite archival, tick snapshots
+  test_v322.py           # v3.22 absolute-path storage, JSONL rotation, snapshot retention
+  test_v323.py           # v3.23 ecosystem stabilization (conservation, regen, adaptability, stress)
+  test_v324.py           # v3.24 wire missing reproduction paths into scheduler
   test_visual.py         # Visual dashboard + /api/organisms endpoint
   test_vital.py          # VITAL hash-chain integrity
 
@@ -425,16 +432,20 @@ Emergent strategies are detected from trait patterns:
 
 The `/visual` page renders every organism as an animated circle on a full-screen canvas. It polls `/api/organisms` every 3 seconds.
 
-### 8 Animation Systems
+### 12 Animation Systems
 
 1. **Energy Pulse** — circle radius oscillates with a sine wave, frequency proportional to energy level
 2. **Awareness Halo** — soft radial gradient glow for organisms with awareness > 0.5
 3. **Evolution Rings** — rotating dashed rings appear every 250 evolutions (max 3), alternating direction
-4. **Energy Stress Flicker** — position jitter and opacity flicker when energy < 15%
+4. **High-Energy Vibration** — position jitter and buzz when energy > 70% (intensity scales with surplus)
 5. **Trait Shimmer** — animated gradient overlay colored by dominant trait
 6. **Environmental Aura** — background particles shift blue→red with resource pool health; scarcity triggers a red vignette
 7. **Hover Physics** — hovering over one organism pushes nearby ones away
 8. **Leader Crowns** — top 3 fitness organisms get gold/silver/bronze orbiting particles
+9. **Energy Trail** — particle emitters on high-energy organisms (>50%), gravity-affected sparks in organism color
+10. **Heartbeat Ring** — rhythmic expanding pulse ring on all living organisms
+11. **Fitness Glow Border** — green outline that brightens with fitness (>0.3)
+12. **Dormant State** — greyed-out, low-alpha, breathing opacity with 💀 skull marker
 
 ### Visual Encoding
 
@@ -442,14 +453,19 @@ The `/visual` page renders every organism as an animated circle on a full-screen
 |----------------|-------------|
 | Circle size | Fitness |
 | Circle color | RGB from adaptability / energy_efficiency / resilience |
+| Circle fill | 3D gradient (highlight + shadow) with trait color |
 | Pulse speed | Energy level |
 | Glow intensity | Awareness |
 | Ring count | Evolution count ÷ 250 |
-| Flicker severity | Low energy (< 15%) |
+| High-energy vibration | Energy > 70% |
 | Background tint | Resource pool health |
 | Crown rank | Top 3 fitness |
-| Hexagon outline | Parent AL-01 |
+| Hexagon outline | Parent AL-01 (blue glow) |
 | Opacity | Inversely proportional to stagnation |
+| Energy trail | Particle sparks when energy > 50% |
+| Heartbeat ring | Rhythmic expanding pulse on living organisms |
+| Green border | Fitness > 0.3 (brightness scales with fitness) |
+| Greyed + 💀 | Dormant state |
 
 ---
 
@@ -534,7 +550,7 @@ pip install pytest httpx
 python -m pytest tests/ -v
 ```
 
-1089 tests across 28 files covering:
+1227 tests across 32 files covering:
 - Core organism lifecycle and state machine
 - Population spawning, death, pruning, and cap enforcement
 - Genome mutation, trade-offs, and soft ceilings
@@ -556,6 +572,11 @@ python -m pytest tests/ -v
 - Reproduction safety: 500-cycle birth cooldown per parent, event idempotency, tick ordering, concurrency guard (v3.17)
 - Ecosystem stabilisation: pool minimum floor, energy-gated reproduction, resource-scaled probability (v3.18)
 - Fix double mutation in rare reproduction, spawn_child mutation_variance parameter (v3.19)
+- Nuclear threshold: oversized memory.json (>500 MB) replaced instead of parsed to prevent OOM/freeze (v3.20)
+- Bounded memory: rolling window cap (1000), SQLite archival, atomic writes, write throttling, tick snapshots (v3.21)
+- Absolute-path storage, JSONL log rotation (50 MB), tick snapshot retention (200), RotatingFileHandler, reflection doubling fix, disk monitoring (v3.22)
+- Ecosystem stabilization: conservation mode, population-scaled regen, adaptability recovery, stress feedback, energy-efficiency metabolism, extinction prevention guard (v3.23)
+- Wire missing reproduction paths into scheduler: lone_survivor, stability_reproduction, wake_dormant (v3.24)
 - Rare reproduction mechanics (5% gate, 2000-cycle cooldown)
 
 ---
@@ -599,6 +620,11 @@ python -m al01.cli verify --last 500
 
 | Version | Key Additions |
 |---------|--------------|
+| **v3.24** | Wire missing reproduction paths into MetabolismScheduler — `lone_survivor_reproduction()`, `stability_reproduction_cycle()`, and `wake_dormant_cycle()` were defined on Organism but never called by the tick loop; now invoked every `auto_reproduce_interval` ticks after `auto_reproduce_cycle()`, respecting death-before-reproduction ordering |
+| **v3.23** | Ecosystem stabilization — minimum energy floor with conservation mode (10% threshold, 30% metabolism), population-scaled resource regeneration (`population_regen_bonus=0.5` per organism), adaptability recovery boost (nudge +0.02/cycle when trait < 0.20), stress feedback loop (stress > 0.60 → exploration + mutation boost), energy_efficiency trait reduces per-cycle energy decay by up to 30%, extinction prevention guard (pop=1 → 3× regen + 100 flat pool boost) |
+| **v3.22** | Absolute-path storage anchoring — all file writes pinned to `D:\AL-01` via `al01/storage.py` module (overridable via `AL01_BASE_DIR` env var), RotatingFileHandler for al01.log (10 MB × 5 backups), JSONL log rotation for life_log/evolution_log/autonomy_log/cycle_log/experiment_log (50 MB × 3 backups), tick snapshot retention (keep newest 200), SQLite moved to `db/al01.db` with auto-migration, `tempfile.tempdir` redirected to `BASE_DIR/tmp/`, CLI defaults use absolute paths, per-event payload size cap (10 KB) to prevent reflection-doubling bug, periodic disk usage monitoring (warns at 10 GB), memory_manager backup/log paths absolutised |
+| **v3.21** | Bounded memory system — rolling window cap reduced from 5000 → 1000 entries, memory events archived to SQLite `memory_events` table for long-term storage, atomic writes for memory.json (tmpfile + rename), write throttling (batch N writes before disk flush), periodic tick-based snapshots (`data/snapshots/snap_<tick>.json`), file-size auto-trim threshold lowered to 10 MB, `flush_memory()` on shutdown |
+| **v3.20** | Nuclear threshold for oversized memory.json — files above 500 MB are replaced with empty entries instead of parsed (prevents OOM/freeze on startup); safety guard in `_load_local_memory_entries()` also refuses to parse files above the threshold |
 | **v3.19** | Fix double mutation in rare reproduction — `rare_reproduction_cycle()` was applying `spawn_child(variance=0.10)` then `population.spawn_child()` applied `spawn_child(variance=0.05)` again; now `population.spawn_child()` accepts `mutation_variance` parameter (default 0.05), rare repro passes parent genome directly with `mutation_variance=0.10` for single-pass mutation |
 | **v3.18** | Ecosystem stabilisation — resource pool minimum floor (`resource_pool_min_floor`, production: 50), energy-gated reproduction (auto ≥ 0.50, stability ≥ 0.60, lone survivor ≥ 0.40, cost 0.20), reproduction probability scales with `pool_fraction`, `deduct_energy()` helper |
 | **v3.17** | 500-cycle birth cooldown per parent (BIRTH_COOLDOWN_CYCLES=500), event idempotency, tick ordering (death before reproduction), alive/dormant re-check at spawn, concurrency guard (threading.Lock wrapping tick) |

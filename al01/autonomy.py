@@ -38,6 +38,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+
+from al01.storage import rotate_jsonl
 import random
 import statistics
 from dataclasses import dataclass, field
@@ -181,6 +183,19 @@ class AutonomyConfig:
     vital_variance_weight: float = 0.25
     vital_adaptation_weight: float = 0.25
     vital_entropy_resistance_weight: float = 0.25
+
+    # ── v3.23: Stabilization — stress feedback & adaptability recovery ─
+    stress_exploration_threshold: float = 0.60
+    """Stress level above which exploration/mutation probability is boosted."""
+    stress_mutation_boost: float = 0.03
+    """Extra mutation rate when stress exceeds threshold."""
+    adaptability_recovery_threshold: float = 0.20
+    """When adaptability drops below this, apply a recovery nudge."""
+    adaptability_recovery_nudge: float = 0.02
+    """Upward nudge applied to adaptability each cycle when below threshold."""
+    energy_efficiency_metabolic_scale: float = 0.30
+    """How much energy_efficiency trait reduces per-cycle energy decay (0–1).
+    At trait=1.0, energy decay is reduced by this fraction."""
 
 
 # ── Decision types ───────────────────────────────────────────────────────
@@ -793,7 +808,13 @@ class AutonomyEngine:
             self._last_trait_snapshot = dict(current_traits)
 
         # 1. Energy decay + environment regen
-        self._energy -= self._config.energy_decay_per_cycle
+        # v3.23: energy_efficiency trait reduces per-cycle decay
+        eff_trait = 0.5
+        if current_traits:
+            eff_trait = current_traits.get("energy_efficiency", 0.5)
+        eff_scale = 1.0 - eff_trait * self._config.energy_efficiency_metabolic_scale
+        eff_scale = max(0.3, min(1.0, eff_scale))
+        self._energy -= self._config.energy_decay_per_cycle * eff_scale
         # v3.6: Use configurable env regen multiplier (was hardcoded 0.01)
         self._energy += energy_regen * self._config.env_regen_multiplier
         # v3.13: Scale regen by pool grant ratio (resource scarcity throttle)
@@ -881,6 +902,32 @@ class AutonomyEngine:
             if self._exploration_cycles_remaining <= 0:
                 self._exploration_mode = False
 
+        # v3.23: Stress feedback loop — high stress triggers adaptive behaviour
+        # Compute composite stress (same formula as InternalSignal)
+        energy_stress = max(0.0, 1.0 - self._energy * 2.0)
+        stag_stress = min(1.0, self._stagnation_count / 200.0)
+        recovery_stress = 0.3 if self._recovery_mode else 0.0
+        computed_stress = min(1.0, energy_stress + stag_stress + recovery_stress)
+        stress_boosted = (
+            computed_stress > cfg.stress_exploration_threshold
+            and not self._recovery_mode
+        )
+        if stress_boosted and not self._exploration_mode:
+            self._exploration_mode = True
+            self._exploration_cycles_remaining = max(
+                self._exploration_cycles_remaining,
+                cfg.stagnation_exploration_cycles,
+            )
+            if not adaptation_reason:
+                adaptation_reason = (
+                    f"stress feedback (stress={computed_stress:.3f} > "
+                    f"{cfg.stress_exploration_threshold}): entering exploration"
+                )
+            logger.info(
+                "[AUTONOMY] Stress feedback: stress=%.3f — boosting exploration",
+                computed_stress,
+            )
+
         # 5. Deterministic decision rules (priority order)
         #    v3.6: Recovery mode overrides — force STABILIZE to rebuild energy
         blend_threshold = (
@@ -941,6 +988,9 @@ class AutonomyEngine:
         effective_mr = mutation_rate + self._mutation_rate_offset
         if self._exploration_mode:
             effective_mr += self._config.stagnation_mutation_boost
+        # v3.23: Stress feedback — additional mutation boost under high stress
+        if stress_boosted:
+            effective_mr += cfg.stress_mutation_boost
         effective_mr = _clamp(effective_mr, 0.01, 0.50)
 
         # 7b. Stagnation-scaled mutation delta
@@ -999,6 +1049,8 @@ class AutonomyEngine:
             "idle_cycles": self._idle_cycles,
             "should_entropy_decay": self.should_entropy_decay,
             "organism_died": self._energy <= 0.0,
+            "stress_level": round(computed_stress, 6),
+            "stress_boosted": stress_boosted,
             "env_modifiers": {k: round(v, 6) for k, v in env.items()} if env else {},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -1128,6 +1180,7 @@ class AutonomyEngine:
     def _append_log(self, record: Dict[str, Any]) -> None:
         """Append a decision record to the JSONL log file."""
         try:
+            rotate_jsonl(self._log_path)
             with open(self._log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, sort_keys=True) + "\n")
         except Exception as exc:

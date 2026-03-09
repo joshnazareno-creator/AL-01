@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import random
+import tempfile
 import threading
 import time
 from copy import deepcopy
@@ -46,6 +47,7 @@ from al01.population import Population
 from al01.genesis_vault import GenesisVault
 from al01.gpt_bridge import GPTBridge, GPTBridgeConfig
 from al01.snapshot_manager import SnapshotConfig, SnapshotManager
+from al01.storage import rotate_jsonl, cleanup_tick_snapshots, check_disk_usage
 
 VERSION = "3.9"
 
@@ -53,6 +55,12 @@ VERSION = "3.9"
 FOUNDER_MUTATION_CAP: float = 0.08      # AL-01 mutation rate never exceeds this
 FOUNDER_ENERGY_FLOOR: float = 0.25      # AL-01 energy never drops below this
 FOUNDER_FITNESS_FLOOR: float = 0.15     # AL-01 won't die unless below this
+
+# ── v3.23: Stabilization constants ───────────────────────────────────
+CONSERVATION_ENERGY_THRESHOLD: float = 0.10   # 10 % of max — enter conservation
+ADAPTABILITY_RECOVERY_THRESHOLD: float = 0.20 # nudge adaptability when below this
+ADAPTABILITY_RECOVERY_NUDGE: float = 0.02     # per-cycle upward nudge
+ENERGY_EFFICIENCY_METABOLIC_SCALE: float = 0.30  # max 30 % cost reduction at trait=1.0
 
 # ── v3.10: Rare reproduction constants ────────────────────────────────
 RARE_REPRO_CYCLE_INTERVAL: int = 500     # evaluate every N cycles
@@ -301,8 +309,9 @@ class CycleLogger:
         self._entries.append(entry)
         if len(self._entries) > self._max_memory:
             self._entries.pop(0)
-        # Write to disk
+        # Write to disk (rotate when oversized)
         try:
+            rotate_jsonl(self._log_path)
             with open(self._log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry.to_dict(), sort_keys=True) + "\n")
         except Exception as exc:
@@ -343,6 +352,8 @@ class MetabolismConfig:
     auto_reproduce_interval: int = 15  # check autonomous reproduction every N ticks
     child_autonomy_interval: int = 10  # child evolution cycle every N ticks
     rare_reproduce_interval: int = 50  # rare reproduction gate every N ticks
+    memory_snapshot_interval: int = 100  # v3.21: save memory snapshot every N ticks
+    disk_check_interval: int = 500  # v3.22: check disk usage every N ticks
 
 
 class MetabolismScheduler:
@@ -396,6 +407,18 @@ class MetabolismScheduler:
         if self._tick_count % self._config.auto_reproduce_interval == 0:
             self._organism.auto_reproduce_cycle()
 
+        # v3.16: Wake dormant organisms when conditions improve
+        if self._tick_count % self._config.auto_reproduce_interval == 0:
+            self._organism.wake_dormant_cycle()
+
+        # v3.16: Stability reproduction — spawn when resources are abundant
+        if self._tick_count % self._config.auto_reproduce_interval == 0:
+            self._organism.stability_reproduction_cycle()
+
+        # v3.16: Lone survivor reproduction — prevent total extinction
+        if self._tick_count % self._config.auto_reproduce_interval == 0:
+            self._organism.lone_survivor_reproduction()
+
         # Behavior analysis snapshot
         if self._tick_count % self._config.behavior_analysis_interval == 0:
             self._organism.behavior_analysis_cycle()
@@ -407,6 +430,14 @@ class MetabolismScheduler:
         # v3.12: Novelty stagnation detection — checked with rare reproduction
         if self._tick_count % self._config.rare_reproduce_interval == 0:
             self._organism.novelty_stagnation_check()
+
+        # v3.21: Periodic memory snapshot — saves lightweight tick snapshot
+        if self._tick_count % self._config.memory_snapshot_interval == 0:
+            self._organism.save_tick_snapshot(self._tick_count)
+
+        # v3.22: Periodic disk usage check
+        if self._tick_count % self._config.disk_check_interval == 0:
+            self._organism.check_disk_usage()
 
 
 class Organism:
@@ -480,6 +511,9 @@ class Organism:
         # v3.12: Novelty tracking — rolling window of per-birth novelty scores
         self._novelty_history: List[float] = []
         self._last_novelty_intervention_cycle: int = 0
+
+        # v3.23: Conservation mode tracking — organisms at minimum energy
+        self._conservation_mode: Dict[str, bool] = {}
 
         # v3.4: Default population cap (overridden by ExperimentConfig when active)
         self._default_max_population: int = 60
@@ -564,7 +598,7 @@ class Organism:
     @property
     def state(self) -> Dict[str, Any]:
         with self._state_lock:
-            return MappingProxyType(deepcopy(self._state))
+            return dict(deepcopy(self._state))
 
     @property
     def organism_state(self) -> str:
@@ -902,7 +936,7 @@ class Organism:
         actions_taken.append("mutation_rate_boost")
 
         # 3. Enter exploration mode for the founder
-        self._autonomy.mode = "exploration"
+        self._autonomy.set_exploration_mode(True)
         actions_taken.append("exploration_mode")
 
         record = {
@@ -1183,6 +1217,16 @@ class Organism:
         if energy < FOUNDER_ENERGY_FLOOR:
             energy = FOUNDER_ENERGY_FLOOR
             self._autonomy._energy = FOUNDER_ENERGY_FLOOR
+
+        # v3.23: Adaptability recovery — nudge adaptability upward when dangerously low
+        adaptability_val = self._genome.effective_traits.get("adaptability", 0.5)
+        if adaptability_val < ADAPTABILITY_RECOVERY_THRESHOLD:
+            old_a = self._genome.get_trait("adaptability")
+            self._genome.set_trait("adaptability", old_a + ADAPTABILITY_RECOVERY_NUDGE)
+            record["adaptability_recovery"] = {
+                "old": round(old_a, 6),
+                "new": round(self._genome.get_trait("adaptability"), 6),
+            }
 
         # v3.5: Instrumentation — energy delta & floor hits
         energy_delta = energy - energy_before
@@ -1526,22 +1570,35 @@ class Organism:
 
         Drifts variables, regenerates resources, triggers scarcity events.
         v3.13: Uses smart_regenerate with population efficiency data.
+        v3.23: Population-scaled regen + extinction prevention guard.
         """
         record = self._environment.tick()
 
         # v3.13: Smart regeneration — factor in population efficiency
+        # v3.23: Pass population_size for per-organism regen bonus
+        pop_size = self._population.size
         avg_eff = self._cycle_stats.efficiency_ratio
         avg_eff = max(0.0, min(1.0, avg_eff)) if avg_eff else 0.5
-        self._environment.smart_regenerate(avg_efficiency=avg_eff)
+        self._environment.smart_regenerate(
+            avg_efficiency=avg_eff, population_size=pop_size,
+        )
 
         # v3.14: Emergency regeneration when pool drops below floor
-        pop_size = self._population.size
         emergency = self._environment.emergency_regenerate(pop_size)
         if emergency > 0:
             record["emergency_regen"] = round(emergency, 4)
             self._logger.info(
                 "[ENV-TICK] Emergency regen activated: +%.1f energy (pop=%d)",
                 emergency, pop_size,
+            )
+
+        # v3.23: Extinction prevention — boost resources when pop = 1
+        extinction_regen = self._environment.extinction_prevention_regenerate(pop_size)
+        if extinction_regen > 0:
+            record["extinction_prevention_regen"] = round(extinction_regen, 4)
+            self._logger.info(
+                "[ENV-TICK] Extinction prevention activated: +%.1f energy (pop=%d)",
+                extinction_regen, pop_size,
             )
 
         if self._experiment:
@@ -1778,17 +1835,34 @@ class Organism:
 
             # v3.5: Energy decay per cycle for children (mirrors parent)
             cfg = self._autonomy.config
-            energy -= cfg.energy_decay_per_cycle
+            # v3.23: energy_efficiency trait reduces metabolic cost
+            eff_trait = child_genome.effective_traits.get("energy_efficiency", 0.5)
+            eff_scale = 1.0 - eff_trait * ENERGY_EFFICIENCY_METABOLIC_SCALE
+            eff_scale = max(0.3, min(1.0, eff_scale))
+            energy -= cfg.energy_decay_per_cycle * eff_scale
             cost_mult = env_modifiers.get("mutation_cost_multiplier", 1.0)
+
+            # v3.23: Conservation mode — if in conservation, use reduced metabolism
+            in_conservation = self._conservation_mode.get(oid, False)
+            if in_conservation:
+                conservation_frac = self._environment.config.conservation_metabolic_fraction
+                metabolic_cost = self._environment.effective_metabolic_cost() * conservation_frac
+            else:
+                metabolic_cost = self._environment.effective_metabolic_cost()
 
             # v3.13: Draw metabolic energy from the global resource pool
             pop_size = self._population.size
-            metabolic_cost = self._environment.effective_metabolic_cost()
             granted = self._environment.request_energy(metabolic_cost, pop_size)
             # Scale internal energy recovery by how much was actually granted
             grant_ratio = granted / metabolic_cost if metabolic_cost > 0 else 1.0
             # Partial grant → less energy recovery, simulating resource scarcity
             energy += 0.01 * grant_ratio  # small pool-fed recovery
+
+            # v3.23: Adaptability recovery — nudge adaptability when dangerously low
+            child_adaptability = child_genome.effective_traits.get("adaptability", 0.5)
+            if child_adaptability < ADAPTABILITY_RECOVERY_THRESHOLD:
+                old_a = child_genome.get_trait("adaptability")
+                child_genome.set_trait("adaptability", old_a + ADAPTABILITY_RECOVERY_NUDGE)
 
             # v3.3: Survival grace cycles — fitness floor death for children
             # v3.13: Scarcity pressure reduces survival grace
@@ -1819,6 +1893,12 @@ class Organism:
             if self._autonomy.exploration_mode:
                 mutation_rate = min(1.0, mutation_rate + self._autonomy.config.stagnation_mutation_boost)
 
+            # v3.23: Stress feedback — boost mutation rate under high stress
+            child_energy_stress = max(0.0, 1.0 - energy * 2.0)
+            child_stress = min(1.0, child_energy_stress)
+            if child_stress > cfg.stress_exploration_threshold:
+                mutation_rate = min(1.0, mutation_rate + cfg.stress_mutation_boost)
+
             # v3.13: Scarcity pressure — raise effective mutation cost
             if self._environment.is_scarcity_pressure:
                 scarcity_sev = self._environment.scarcity_severity
@@ -1827,7 +1907,12 @@ class Organism:
             # v3.9: Elite Protection — elites skip mutation, get crossover instead
             is_elite = oid in elite_set
 
-            if is_elite and fitness < eff_threshold:
+            # v3.23: Conservation mode — force stabilize to conserve energy
+            if in_conservation:
+                decision = "conservation"
+                energy += cfg.energy_stabilize_bonus * 0.5  # half-rate recovery
+                evo_count += 0  # no evolution during conservation
+            elif is_elite and fitness < eff_threshold:
                 # Elite with low fitness → targeted crossover blend with a
                 # random non-elite member (avoids disturbing other genomes
                 # during iteration).
@@ -1867,7 +1952,7 @@ class Organism:
                 energy -= cfg.energy_adapt_cost * cost_mult
                 traits = child_genome.traits
                 if traits:
-                    weakest = min(traits, key=traits.get)
+                    weakest = min(traits, key=lambda k: traits[k])
                     old_val = child_genome.get_trait(weakest)
                     nudge = self._autonomy.config.adapt_trait_nudge
                     child_genome.set_trait(weakest, old_val + nudge)
@@ -1883,11 +1968,28 @@ class Organism:
                 child_genome.decay_traits(effective_entropy_rate)
 
             # v3.5: Clamp child energy and check for energy death
+            # v3.23: Conservation mode — organisms at minimum energy enter
+            # conservation instead of dying immediately
             energy = max(cfg.energy_min, min(1.0, energy))
+            if energy <= CONSERVATION_ENERGY_THRESHOLD and not in_conservation:
+                # Enter conservation mode — reduced metabolism, no reproduction
+                self._conservation_mode[oid] = True
+                self._logger.info(
+                    "[CONSERVATION] %s entering conservation mode (energy=%.4f)",
+                    oid, energy,
+                )
+            elif energy > CONSERVATION_ENERGY_THRESHOLD * 2 and in_conservation:
+                # Exit conservation mode once energy recovers above 2 × threshold
+                self._conservation_mode[oid] = False
+                self._logger.info(
+                    "[CONSERVATION] %s exiting conservation mode (energy=%.4f)",
+                    oid, energy,
+                )
             if energy <= 0.0:
                 self._logger.warning(
                     "[CHILD-ENERGY] %s energy depleted — death", oid,
                 )
+                self._conservation_mode.pop(oid, None)
                 self._handle_death(oid, "energy_depleted")
                 results.append({
                     "organism_id": oid, "decision": "death",
@@ -1957,6 +2059,9 @@ class Organism:
         again are truly removed.
         The AL-01 founder never goes dormant — it uses the floor guard.
         """
+        # v3.23: Clear conservation mode on death
+        self._conservation_mode.pop(organism_id, None)
+
         member = self._population.get(organism_id)
         # v3.16: Any death cause triggers dormancy for non-founder,
         # non-already-dormant organisms
@@ -2757,6 +2862,10 @@ class Organism:
                 }
             )
 
+    # v3.22: Maximum size for a single reflection fragment to prevent
+    # exponential payload doubling (reflection embeds previous reflections).
+    _REFLECT_FRAGMENT_MAX: int = 200
+
     def reflect(self) -> None:
         self._set_organism_state(OrganismState.REFLECTING)
         recent = self._memory_manager.read_memory(limit=5)
@@ -2767,7 +2876,16 @@ class Organism:
         for entry in recent:
             event_type = entry.get("event_type", "event")
             payload = entry.get("payload", {})
-            fragments.append(f"{event_type}:{json.dumps(payload, sort_keys=True)}")
+            # v3.22: For reflection entries, use a short label instead of
+            # re-serialising the nested summary (which doubles in size
+            # every cycle due to repeated JSON escaping).
+            if event_type == "reflection":
+                raw = str(payload.get("summary", ""))
+                frag = f"reflection:[{raw[:self._REFLECT_FRAGMENT_MAX]}]"
+            else:
+                raw = json.dumps(payload, sort_keys=True)
+                frag = f"{event_type}:{raw[:self._REFLECT_FRAGMENT_MAX]}"
+            fragments.append(frag)
         summary = "; ".join(fragments)
 
         self._memory_manager.write_memory(
@@ -2826,6 +2944,61 @@ class Organism:
         if self._life_log.should_snapshot():
             self._life_log.write_snapshot(state_snapshot)
 
+    def check_disk_usage(self) -> None:
+        """v3.22: Periodic disk usage check — warns if storage exceeds threshold."""
+        try:
+            status = check_disk_usage()
+            if status["warning"]:
+                self._logger.warning("[DISK] %s", status["message"])
+            else:
+                self._logger.info("[DISK] %s", status["message"])
+        except Exception as exc:
+            self._logger.warning("[DISK] Usage check failed: %s", exc)
+
+    def save_tick_snapshot(self, tick: int) -> None:
+        """Save a lightweight tick-based snapshot to data/snapshots/.
+
+        Called every ``memory_snapshot_interval`` ticks (v3.21).  These
+        periodic snapshots allow historical analysis without bloating
+        memory.json.
+        """
+        snapshot_dir = os.path.join(self._data_dir, "data", "snapshots")
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+        with self._state_lock:
+            snap = {
+                "tick": tick,
+                "timestamp": _utc_now(),
+                "evolution_count": self._state.get("evolution_count", 0),
+                "awareness": float(self._state.get("awareness", 0.0)),
+                "fitness": self._genome.fitness,
+                "energy": self._genome.traits.get("energy_efficiency", 0.0),
+                "population_size": self._population.size,
+                "genome": self._genome.to_dict(),
+            }
+
+        path = os.path.join(snapshot_dir, f"snap_{tick}.json")
+        try:
+            # Atomic write
+            fd, tmp_path = tempfile.mkstemp(
+                dir=snapshot_dir, suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    json.dump(snap, fh, indent=2, default=str)
+                os.replace(tmp_path, path)
+            except BaseException:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                raise
+            self._logger.info("[SNAPSHOT] Tick snapshot saved: %s", path)
+            # v3.22: Prune old tick snapshots to prevent unbounded growth
+            removed = cleanup_tick_snapshots(snapshot_dir)
+            if removed:
+                self._logger.info("[SNAPSHOT] Cleaned up %d old tick snapshots", removed)
+        except Exception as exc:
+            self._logger.warning("[SNAPSHOT] Tick snapshot failed: %s", exc)
+
     def run_loop(self, interval: int = 5, log_cycle: bool = False) -> None:
         safe_interval = max(1, int(interval))
 
@@ -2870,6 +3043,9 @@ class Organism:
             self._snapshot_manager.stop()
 
         self.persist(force=True)
+
+        # v3.21: Flush buffered memory entries to disk
+        self._memory_manager.flush_memory()
 
         # Log shutdown to life log
         self._life_log.append_event(

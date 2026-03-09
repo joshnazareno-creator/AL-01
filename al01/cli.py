@@ -10,6 +10,7 @@ import sys
 # Ensure package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from al01 import storage
 from al01.genesis_vault import GenesisVault
 from al01.life_log import LifeLog
 from al01.snapshot_manager import SnapshotConfig, SnapshotManager
@@ -232,48 +233,55 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="al01.cli", description="AL-01 command-line tools")
     sub = parser.add_subparsers(dest="command")
 
+    # v3.22: All CLI commands default to absolute paths via storage module
+    _data = storage.DATA_DIR
+    _base = storage.BASE_DIR
+
     # verify
     verify_p = sub.add_parser("verify", help="Verify life-log hash-chain integrity")
     verify_p.add_argument("--last", type=int, default=500, help="Number of recent entries to verify (default: 500)")
-    verify_p.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
+    verify_p.add_argument("--data-dir", type=str, default=_data, help=f"Data directory (default: {_data})")
 
     # snapshot now
     snap_now = sub.add_parser("snapshot", help="Take an immediate state snapshot")
-    snap_now.add_argument("--data-dir", type=str, default=".", help="Data directory (default: .)")
+    snap_now.add_argument("--data-dir", type=str, default=_base, help=f"Base directory (default: {_base})")
     snap_now.add_argument("--label", type=str, default="manual", help="Snapshot label")
     snap_now.add_argument("--retention-days", type=int, default=30, help="Retention period in days")
 
     # snapshot-list
     snap_list = sub.add_parser("snapshot-list", help="List recent snapshots")
-    snap_list.add_argument("--data-dir", type=str, default=".", help="Data directory (default: .)")
+    snap_list.add_argument("--data-dir", type=str, default=_base, help=f"Base directory (default: {_base})")
     snap_list.add_argument("--limit", type=int, default=20, help="Max entries to show")
     snap_list.add_argument("--label", type=str, default=None, help="Filter by label")
     snap_list.add_argument("--retention-days", type=int, default=30, help="Retention period in days")
 
     # snapshot-status
     snap_status = sub.add_parser("snapshot-status", help="Show snapshot manager status")
-    snap_status.add_argument("--data-dir", type=str, default=".", help="Data directory (default: .)")
+    snap_status.add_argument("--data-dir", type=str, default=_base, help=f"Base directory (default: {_base})")
     snap_status.add_argument("--retention-days", type=int, default=30, help="Retention period in days")
 
     # snapshot-purge
     snap_purge = sub.add_parser("snapshot-purge", help="Purge old snapshots")
     snap_purge.add_argument("--days", type=int, default=30, help="Delete snapshots older than N days")
-    snap_purge.add_argument("--data-dir", type=str, default=".", help="Data directory (default: .)")
+    snap_purge.add_argument("--data-dir", type=str, default=_base, help=f"Base directory (default: {_base})")
     snap_purge.add_argument("--retention-days", type=int, default=30, help="Retention period in days")
 
     # vault
     vault_p = sub.add_parser("vault", help="Show Genesis Vault status")
-    vault_p.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
+    vault_p.add_argument("--data-dir", type=str, default=_data, help=f"Data directory (default: {_data})")
 
     # vault-history
     vault_hist = sub.add_parser("vault-history", help="Show reseed event history")
-    vault_hist.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
+    vault_hist.add_argument("--data-dir", type=str, default=_data, help=f"Data directory (default: {_data})")
 
     # repair-vital
     repair_p = sub.add_parser("repair-vital", help="Repair broken VITAL hash chain")
-    repair_p.add_argument("--data-dir", type=str, default="data", help="Data directory (default: data)")
+    repair_p.add_argument("--data-dir", type=str, default=_data, help=f"Data directory (default: {_data})")
 
     args = parser.parse_args()
+    # Resolve to absolute in case user passes a relative --data-dir
+    if hasattr(args, 'data_dir'):
+        args.data_dir = os.path.abspath(args.data_dir)
 
     if args.command == "verify":
         cmd_verify(args)

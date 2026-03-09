@@ -13,6 +13,8 @@ import json
 import logging
 import os
 import threading
+
+from al01.storage import rotate_jsonl
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -139,7 +141,8 @@ class LifeLog:
 
             event["hash"] = _compute_hash(prev_hash, event["payload"], now, seq)
 
-            # Append to JSONL (never rewrite)
+            # Append to JSONL (never rewrite); rotate when oversized
+            rotate_jsonl(self._log_path)
             with open(self._log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(event, separators=(",", ":"), default=str) + "\n")
 
