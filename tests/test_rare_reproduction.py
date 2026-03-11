@@ -595,10 +595,8 @@ class TestDormantSkipped:
             monkeypatch.setattr(random, "random", lambda: 0.01)
             monkeypatch.setattr(random, "shuffle", lambda x: None)
             _set_eligible_parent(org._population, "AL-01", energy=0.80)
-            # Set AL-01 to dormant
-            with org._population._lock:
-                org._population._members["AL-01"]["state"] = "dormant"
-                org._population._save()
+            # Set AL-01 to dormant via lifecycle_state
+            org._population.enter_dormant("AL-01", cause="test")
             child = org.rare_reproduction_cycle()
             assert child is None
         finally:

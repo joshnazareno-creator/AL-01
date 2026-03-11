@@ -97,6 +97,10 @@ class EvolutionTracker:
             "genome_hash": ghash,
             "birth_cycle": cycle,
             "birth_timestamp": _utc_now(),
+            # v3.26: death fields (set by record_death)
+            "death_cycle": None,
+            "death_cause": None,
+            "death_timestamp": None,
         }
         self._lineage[organism_id] = entry
 
@@ -186,6 +190,11 @@ class EvolutionTracker:
             "cause": cause,
             "timestamp": _utc_now(),
         })
+        # v3.26: Update in-memory lineage with death metadata
+        if organism_id in self._lineage:
+            self._lineage[organism_id]["death_cycle"] = cycle
+            self._lineage[organism_id]["death_cause"] = cause
+            self._lineage[organism_id]["death_timestamp"] = _utc_now()
         logger.info("[TRACKER] Death: %s cause=%s cycle=%d", organism_id, cause, cycle)
 
     def record_reproduction(
@@ -488,6 +497,13 @@ class EvolutionTracker:
                 if oid not in self._trait_snapshots:
                     self._trait_snapshots[oid] = []
                 self._trait_snapshots[oid].append((cycle, traits))
+        elif event_type == "death":
+            # v3.26: Index death into lineage record
+            oid = entry.get("organism_id", "")
+            if oid in self._lineage:
+                self._lineage[oid]["death_cycle"] = entry.get("cycle")
+                self._lineage[oid]["death_cause"] = entry.get("cause")
+                self._lineage[oid]["death_timestamp"] = entry.get("timestamp")
 
 
 def _utc_now() -> str:

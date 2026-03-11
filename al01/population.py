@@ -41,6 +41,41 @@ BIRTH_COOLDOWN_CYCLES: int = 500
 # v3.11: Species divergence threshold — Euclidean genome distance
 SPECIES_DIVERGENCE_THRESHOLD: float = 0.35
 
+# v3.26: Graveyard cap — maximum dead organisms kept in archive
+GRAVEYARD_CAP: int = 200
+
+
+class LifecycleState:
+    """Canonical lifecycle states for organisms (v3.26).
+
+    active   — alive and currently simulated
+    sleeping — alive, low-activity conservation, auto-recoverable
+    dormant  — suspended survival state, recoverable only under
+               specific recovery rules
+    dead     — terminal state, never auto-recovers
+    """
+    ACTIVE = "active"
+    SLEEPING = "sleeping"
+    DORMANT = "dormant"
+    DEAD = "dead"
+
+    _SIMULATED = frozenset({"active", "sleeping"})
+
+    @classmethod
+    def is_simulated(cls, state: str) -> bool:
+        """Active or sleeping — participates in tick simulation."""
+        return state in cls._SIMULATED
+
+    @classmethod
+    def is_alive(cls, state: str) -> bool:
+        """Not dead (active, sleeping, or dormant)."""
+        return state != cls.DEAD
+
+    @classmethod
+    def can_reproduce(cls, state: str) -> bool:
+        """Only active organisms can reproduce."""
+        return state == cls.ACTIVE
+
 
 def _genome_hash(traits: Dict[str, float]) -> str:
     """SHA-256 hash of trait values, truncated to 16 hex chars."""
@@ -86,8 +121,12 @@ class Population:
         os.makedirs(data_dir, exist_ok=True)
         self._members: Dict[str, Dict[str, Any]] = self._load()
 
-        # Count existing children for numbering
-        for mid in self._members:
+        # v3.26: Dead organism archive (persisted separately)
+        self._graveyard_path = os.path.join(data_dir, "graveyard.json")
+        self._graveyard: Dict[str, Dict[str, Any]] = self._load_graveyard()
+
+        # Count existing children for numbering (scan both live and graveyard)
+        for mid in list(self._members) + list(self._graveyard):
             if mid.startswith(f"{parent_id}-child-"):
                 try:
                     num = int(mid.rsplit("-", 1)[-1])
@@ -96,7 +135,9 @@ class Population:
                     pass
 
         # Ensure the parent always exists in the registry
-        if parent_id not in self._members:
+        # v3.26 fix: Check graveyard too — don't create a fresh parent
+        # if the dead copy is in the graveyard (boot() handles revival).
+        if parent_id not in self._members and parent_id not in self._graveyard:
             parent_genome = Genome()
             self._members[parent_id] = {
                 "id": parent_id,
@@ -117,13 +158,21 @@ class Population:
                 "consecutive_above_repro": 0,
                 "last_birth_tick": -BIRTH_COOLDOWN_CYCLES,
                 "nickname": None,
+                # v3.26 lifecycle
+                "lifecycle_state": LifecycleState.ACTIVE,
+                "below_fitness_cycles": 0,
             }
 
         self._migrate_members()
 
     def _migrate_members(self) -> None:
-        """Add v3.0 fields to any legacy member records."""
+        """Add v3.0+ fields to any legacy member records.
+
+        v3.26: Adds lifecycle_state, below_fitness_cycles.
+        Moves dead organisms from _members to _graveyard.
+        """
         changed = False
+        dead_ids: list = []
         for mid, m in self._members.items():
             if "generation_id" not in m:
                 m["generation_id"] = 0 if m.get("parent_id") is None else 1
@@ -156,6 +205,29 @@ class Population:
             if "nickname" not in m:
                 m["nickname"] = None
                 changed = True
+            # v3.26: lifecycle_state + below_fitness_cycles
+            if "lifecycle_state" not in m:
+                if not m.get("alive", True):
+                    m["lifecycle_state"] = LifecycleState.DEAD
+                    dead_ids.append(mid)
+                elif m.get("state") == "dormant":
+                    m["lifecycle_state"] = LifecycleState.DORMANT
+                else:
+                    m["lifecycle_state"] = LifecycleState.ACTIVE
+                changed = True
+            elif m.get("lifecycle_state") == LifecycleState.DEAD:
+                # Fix: organisms already marked dead but still in _members
+                # (e.g., from crash before graveyard save) must be moved.
+                dead_ids.append(mid)
+            if "below_fitness_cycles" not in m:
+                m["below_fitness_cycles"] = 0
+                changed = True
+        # v3.26: Move dead organisms to graveyard
+        for mid in dead_ids:
+            self._graveyard[mid] = self._members.pop(mid)
+        if dead_ids:
+            self._save_graveyard()
+            logger.info("[POPULATION] Migrated %d dead organisms to graveyard", len(dead_ids))
         if changed:
             self._save()
 
@@ -193,67 +265,94 @@ class Population:
 
     @property
     def size(self) -> int:
-        """Number of living members (excludes dormant)."""
+        """Number of active + sleeping members (excludes dormant)."""
         with self._lock:
             return sum(1 for m in self._members.values()
-                       if m.get("alive", True) and m.get("state") != "dormant")
+                       if LifecycleState.is_simulated(
+                           m.get("lifecycle_state", LifecycleState.ACTIVE)))
 
     @property
     def living_or_dormant_count(self) -> int:
-        """Number of living + dormant members."""
+        """Number of living + dormant members (everything in the live registry)."""
         with self._lock:
-            return sum(1 for m in self._members.values()
-                       if m.get("alive", True))
+            return len(self._members)
 
     @property
     def dormant_count(self) -> int:
         """Number of dormant members."""
         with self._lock:
             return sum(1 for m in self._members.values()
-                       if m.get("alive", True) and m.get("state") == "dormant")
+                       if m.get("lifecycle_state") == LifecycleState.DORMANT)
+
+    @property
+    def sleeping_count(self) -> int:
+        """Number of sleeping members."""
+        with self._lock:
+            return sum(1 for m in self._members.values()
+                       if m.get("lifecycle_state") == LifecycleState.SLEEPING)
 
     @property
     def total_size(self) -> int:
-        """Total members including dead."""
+        """Total members including dead (graveyard)."""
         with self._lock:
-            return len(self._members)
+            return len(self._members) + len(self._graveyard)
 
     @property
     def member_ids(self) -> List[str]:
-        """IDs of living members (excludes dormant)."""
+        """IDs of active + sleeping members (excludes dormant)."""
         with self._lock:
             return [mid for mid, m in self._members.items()
-                    if m.get("alive", True) and m.get("state") != "dormant"]
+                    if LifecycleState.is_simulated(
+                        m.get("lifecycle_state", LifecycleState.ACTIVE))]
 
     @property
     def all_member_ids(self) -> List[str]:
-        """IDs of all members including dead."""
+        """IDs of all members including graveyard."""
         with self._lock:
-            return list(self._members.keys())
+            return list(self._members.keys()) + list(self._graveyard.keys())
 
     def get(self, organism_id: str) -> Optional[Dict[str, Any]]:
+        """Look up by ID. Checks live registry first, then graveyard."""
+        with self._lock:
+            m = self._members.get(organism_id) or self._graveyard.get(organism_id)
+            return dict(m) if m else None
+
+    def get_live(self, organism_id: str) -> Optional[Dict[str, Any]]:
+        """Look up by ID in live registry only (excludes graveyard)."""
         with self._lock:
             m = self._members.get(organism_id)
             return dict(m) if m else None
 
     def get_all(self) -> List[Dict[str, Any]]:
-        """Get all living members (excludes dormant)."""
+        """Get all active + sleeping members (excludes dormant and dead)."""
         with self._lock:
             return [dict(m) for m in self._members.values()
-                    if m.get("alive", True) and m.get("state") != "dormant"]
+                    if LifecycleState.is_simulated(
+                        m.get("lifecycle_state", LifecycleState.ACTIVE))]
 
     def get_all_including_dead(self) -> List[Dict[str, Any]]:
+        """Get all members including graveyard."""
         with self._lock:
-            return [dict(m) for m in self._members.values()]
+            result = [dict(m) for m in self._members.values()]
+            result.extend(dict(m) for m in self._graveyard.values())
+            return result
 
     def get_dormant(self) -> List[Dict[str, Any]]:
-        """v3.15: Get all dormant members."""
+        """Get all dormant members."""
         with self._lock:
             return [dict(m) for m in self._members.values()
-                    if m.get("alive", True) and m.get("state") == "dormant"]
+                    if m.get("lifecycle_state") == LifecycleState.DORMANT]
+
+    def get_sleeping(self) -> List[Dict[str, Any]]:
+        """v3.26: Get all sleeping members."""
+        with self._lock:
+            return [dict(m) for m in self._members.values()
+                    if m.get("lifecycle_state") == LifecycleState.SLEEPING]
 
     def update_member(self, organism_id: str, updates: Dict[str, Any]) -> None:
         """Update fields for an existing member and persist.
+
+        v3.28: Rejects updates for dead organisms (lifecycle_state == DEAD).
 
         Adopted children have immutable lineage fields (parent_id,
         original_id, original_parent_id, generation_id) which are
@@ -262,6 +361,13 @@ class Population:
         with self._lock:
             if organism_id in self._members:
                 member = self._members[organism_id]
+                # v3.28: Guard — reject updates for dead organisms
+                if member.get("lifecycle_state") == LifecycleState.DEAD:
+                    logger.error(
+                        "[ERROR] Dead organism %s attempted to update — rejected",
+                        organism_id,
+                    )
+                    return
                 # Protect immutable lineage fields on adopted children
                 if member.get("adopted", False):
                     from al01.portable import IMMUTABLE_LINEAGE_FIELDS
@@ -299,7 +405,7 @@ class Population:
         """Record a fitness data point for an organism's independent history."""
         with self._lock:
             m = self._members.get(organism_id)
-            if not m or not m.get("alive", True):
+            if not m or m.get("lifecycle_state") == LifecycleState.DEAD:
                 return
             history = m.get("fitness_history", [])
             history.append(round(fitness, 6))
@@ -309,10 +415,20 @@ class Population:
             self._save()
 
     def update_energy(self, organism_id: str, energy: float) -> None:
-        """Update energy for a member."""
+        """Update energy for a member.
+
+        v3.28: Rejects updates for dead organisms.
+        """
         with self._lock:
             if organism_id in self._members:
-                self._members[organism_id]["energy"] = round(energy, 6)
+                member = self._members[organism_id]
+                if member.get("lifecycle_state") == LifecycleState.DEAD:
+                    logger.error(
+                        "[ERROR] Dead organism %s attempted energy update — rejected",
+                        organism_id,
+                    )
+                    return
+                member["energy"] = round(energy, 6)
                 self._save()
 
     def update_consecutive_repro(
@@ -327,7 +443,7 @@ class Population:
         """
         with self._lock:
             m = self._members.get(organism_id)
-            if not m or not m.get("alive", True):
+            if not m or m.get("lifecycle_state") == LifecycleState.DEAD:
                 return 0
             if fitness >= threshold:
                 m["consecutive_above_repro"] = m.get("consecutive_above_repro", 0) + 1
@@ -340,26 +456,31 @@ class Population:
     # Death / Removal
     # ------------------------------------------------------------------
 
-    def remove_member(self, organism_id: str, cause: str = "unknown") -> Optional[Dict[str, Any]]:
-        """Mark an organism as dead.  Does NOT delete from registry.
+    def remove_member(self, organism_id: str, cause: str = "unknown",
+                      death_cycle: int = 0) -> Optional[Dict[str, Any]]:
+        """Kill an organism and move it to the graveyard.
 
         v3.14: Refuses to kill if it would drop population below
         ``min_population_floor`` (unless ``hardcore_extinction_mode`` is on).
+        v3.26: Dead organisms are moved from _members to _graveyard.
+        Death is terminal — dead organisms never auto-recover.
 
         Returns the death info, or None if not found / blocked by floor.
         """
         with self._lock:
             m = self._members.get(organism_id)
             if not m:
+                # Already dead (in graveyard)?
+                g = self._graveyard.get(organism_id)
+                if g:
+                    return g.get("death_info")
                 return None
-            if not m.get("alive", True):
+            if m.get("lifecycle_state") == LifecycleState.DEAD:
                 return m.get("death_info")
 
             # v3.14: Population floor guard
-            # Only enforced when the population has reached the floor level.
-            # If population is already below floor (hasn't grown there), deaths proceed normally.
             if not self._hardcore_extinction_mode:
-                living_count = sum(1 for mx in self._members.values() if mx.get("alive", True))
+                living_count = len(self._members)
                 floor = self.min_population_floor
                 if living_count >= floor and (living_count - 1) < floor:
                     logger.warning(
@@ -371,40 +492,46 @@ class Population:
             death_info = {
                 "cause": cause,
                 "death_time": _utc_now(),
+                "death_cycle": death_cycle,
                 "final_fitness": m.get("genome", {}).get("fitness", 0.0),
                 "final_energy": m.get("energy", 0.0),
                 "generation_id": m.get("generation_id", 0),
             }
             m["alive"] = False
+            m["lifecycle_state"] = LifecycleState.DEAD
             m["death_info"] = death_info
             m["state"] = "dead"
+            # v3.26: Move to graveyard
+            self._graveyard[organism_id] = self._members.pop(organism_id)
+            self._prune_graveyard()
             self._save()
+            self._save_graveyard()
 
         logger.info(
-            "[POPULATION] Death: %s cause=%s fitness=%.4f",
+            "[POPULATION] Death: %s cause=%s fitness=%.4f → graveyard",
             organism_id, cause, death_info["final_fitness"],
         )
         return death_info
 
     def enter_dormant(self, organism_id: str, cause: str = "unknown") -> Optional[Dict[str, Any]]:
-        """v3.15: Put an organism into dormant state instead of killing it.
+        """v3.15: Put an organism into dormant state.
 
         Dormant organisms:
-        - Are still ``alive=True`` but ``state="dormant"``
+        - ``lifecycle_state = "dormant"``
+        - Are still ``alive=True``
         - Do NOT participate in reproduction or evolution decisions
-        - Consume only ``_dormant_metabolic_fraction`` of normal energy
-        - Can be woken when conditions improve (via ``wake_dormant()``)
+        - Can be woken only when specific recovery conditions are met
 
-        Returns dormant info dict, or None if not found / already dead.
+        v3.26: Uses lifecycle_state instead of state field.
         """
         with self._lock:
             m = self._members.get(organism_id)
             if not m:
                 return None
-            if not m.get("alive", True):
-                return None  # already dead, can't go dormant
-            if m.get("state") == "dormant":
-                return m.get("dormant_info")  # already dormant
+            if m.get("lifecycle_state") == LifecycleState.DEAD:
+                return None
+            if m.get("lifecycle_state") == LifecycleState.DORMANT:
+                return m.get("dormant_info")
 
             dormant_info = {
                 "cause": cause,
@@ -413,9 +540,10 @@ class Population:
                 "energy_at_dormancy": m.get("energy", 0.0),
                 "generation_id": m.get("generation_id", 0),
             }
+            m["lifecycle_state"] = LifecycleState.DORMANT
             m["state"] = "dormant"
             m["dormant_info"] = dormant_info
-            m["consecutive_above_repro"] = 0  # dormant organisms cannot reproduce
+            m["consecutive_above_repro"] = 0
             self._save()
 
         logger.info(
@@ -424,21 +552,57 @@ class Population:
         )
         return dormant_info
 
-    def wake_dormant(self, organism_id: str, energy_boost: float = 0.3) -> Optional[Dict[str, Any]]:
-        """v3.15: Wake a dormant organism back to active state.
+    def enter_sleeping(self, organism_id: str, cause: str = "low_energy") -> Optional[Dict[str, Any]]:
+        """v3.26: Put an organism into sleeping state (low-activity conservation).
 
-        Gives a small energy boost to help the organism survive after waking.
-        Returns the wake record, or None if not dormant.
+        Sleeping organisms:
+        - ``lifecycle_state = "sleeping"``
+        - Are still ``alive=True``
+        - Consume reduced metabolic cost
+        - Auto-recover when energy exceeds threshold
         """
         with self._lock:
             m = self._members.get(organism_id)
             if not m:
                 return None
-            if m.get("state") != "dormant":
+            ls = m.get("lifecycle_state", LifecycleState.ACTIVE)
+            if ls in (LifecycleState.DEAD, LifecycleState.DORMANT):
+                return None
+            if ls == LifecycleState.SLEEPING:
+                return m.get("sleeping_info")
+
+            sleeping_info = {
+                "cause": cause,
+                "sleeping_since": _utc_now(),
+                "energy_at_sleep": m.get("energy", 0.0),
+            }
+            m["lifecycle_state"] = LifecycleState.SLEEPING
+            m["state"] = "sleeping"
+            m["sleeping_info"] = sleeping_info
+            m["consecutive_above_repro"] = 0
+            self._save()
+
+        logger.info(
+            "[POPULATION] Sleeping: %s cause=%s energy=%.4f",
+            organism_id, cause, sleeping_info["energy_at_sleep"],
+        )
+        return sleeping_info
+
+    def wake_dormant(self, organism_id: str, energy_boost: float = 0.3) -> Optional[Dict[str, Any]]:
+        """v3.15: Wake a dormant organism back to active state.
+
+        v3.26: Sets lifecycle_state to ACTIVE.
+        """
+        with self._lock:
+            m = self._members.get(organism_id)
+            if not m:
+                return None
+            if m.get("lifecycle_state") != LifecycleState.DORMANT:
                 return None
 
             old_energy = m.get("energy", 0.0)
             new_energy = min(1.0, old_energy + energy_boost)
+            m["lifecycle_state"] = LifecycleState.ACTIVE
             m["state"] = "idle"
             m["energy"] = round(new_energy, 6)
             dormant_info = m.pop("dormant_info", {})
@@ -457,12 +621,41 @@ class Population:
         )
         return wake_record
 
+    def wake_sleeping(self, organism_id: str) -> Optional[Dict[str, Any]]:
+        """v3.26: Wake a sleeping organism back to active state."""
+        with self._lock:
+            m = self._members.get(organism_id)
+            if not m:
+                return None
+            if m.get("lifecycle_state") != LifecycleState.SLEEPING:
+                return None
+
+            m["lifecycle_state"] = LifecycleState.ACTIVE
+            m["state"] = "idle"
+            sleeping_info = m.pop("sleeping_info", {})
+            wake_record = {
+                "organism_id": organism_id,
+                "woke_at": _utc_now(),
+                "sleeping_since": sleeping_info.get("sleeping_since"),
+            }
+            self._save()
+
+        logger.info("[POPULATION] Woke sleeping: %s", organism_id)
+        return wake_record
+
     @property
     def dormant_ids(self) -> List[str]:
         """IDs of dormant members."""
         with self._lock:
             return [mid for mid, m in self._members.items()
-                    if m.get("alive", True) and m.get("state") == "dormant"]
+                    if m.get("lifecycle_state") == LifecycleState.DORMANT]
+
+    @property
+    def sleeping_ids(self) -> List[str]:
+        """IDs of sleeping members."""
+        with self._lock:
+            return [mid for mid, m in self._members.items()
+                    if m.get("lifecycle_state") == LifecycleState.SLEEPING]
 
     def prune_weakest(self, max_size: int, min_keep: int = 2) -> List[Dict[str, Any]]:
         """Kill the weakest organisms to bring population down to *max_size*.
@@ -475,9 +668,9 @@ class Population:
         with self._lock:
             living = [
                 (mid, m) for mid, m in self._members.items()
-                if m.get("alive", True)
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))
             ]
-            if len(living) <= max_size:
+            if len(living) <= max_size or len(living) <= min_keep:
                 return deaths
 
             # Sort by fitness — lowest first
@@ -506,13 +699,18 @@ class Population:
                     "generation_id": m.get("generation_id", 0),
                 }
                 m["alive"] = False
+                m["lifecycle_state"] = LifecycleState.DEAD
                 m["death_info"] = death_info
                 m["state"] = "dead"
+                # v3.26: Move to graveyard
+                self._graveyard[mid] = self._members.pop(mid)
                 deaths.append({"organism_id": mid, **death_info})
                 logger.info("[POPULATION] Pruned %s (fitness=%.4f)", mid, death_info["final_fitness"])
 
             if deaths:
+                self._prune_graveyard()
                 self._save()
+                self._save_graveyard()
         return deaths
 
     # ------------------------------------------------------------------
@@ -559,13 +757,12 @@ class Population:
             # v3.17 guards only apply when parent_id is explicitly provided
             # (not for setup/manual spawns where parent_id=None)
             if parent_id:
-                # Safety re-check — parent must be alive at spawn time
+                # Safety re-check — parent must be alive and active at spawn time
                 parent_rec = self._members.get(parent_id)
-                if parent_rec and not parent_rec.get("alive", True):
-                    logger.info("[POPULATION] Dead parent %s — spawn blocked", parent_id)
-                    return None
-                if parent_rec and parent_rec.get("state") == "dormant":
-                    logger.info("[POPULATION] Dormant parent %s — spawn blocked", parent_id)
+                if not parent_rec or not LifecycleState.can_reproduce(
+                        parent_rec.get("lifecycle_state", LifecycleState.ACTIVE)):
+                    logger.info("[POPULATION] Parent %s not active (state=%s) — spawn blocked",
+                                parent_id, parent_rec.get("lifecycle_state") if parent_rec else "missing")
                     return None
 
                 # Birth cooldown — 500 cycles between births per parent
@@ -613,6 +810,9 @@ class Population:
                 "consecutive_above_repro": 0,
                 "last_birth_tick": -BIRTH_COOLDOWN_CYCLES,
                 "nickname": None,
+                # v3.26 lifecycle
+                "lifecycle_state": LifecycleState.ACTIVE,
+                "below_fitness_cycles": 0,
             }
             self._members[child_id] = child_record
             # v3.17: Record birth tick on parent
@@ -644,10 +844,8 @@ class Population:
         """
         with self._lock:
             m = self._members.get(organism_id)
-            if not m or not m.get("alive", True):
-                return None
-            # v3.16 fix: dormant organisms cannot reproduce
-            if m.get("state") == "dormant":
+            if not m or not LifecycleState.can_reproduce(
+                    m.get("lifecycle_state", LifecycleState.ACTIVE)):
                 return None
             consecutive = m.get("consecutive_above_repro", 0)
             if consecutive < required_cycles:
@@ -679,23 +877,18 @@ class Population:
     # ------------------------------------------------------------------
 
     def top_fitness_members(self, n: int = 10, include_dormant: bool = True) -> List[Dict[str, Any]]:
-        """v3.15: Return top-N members by fitness (living + optionally dormant).
+        """Return top-N living members by fitness for reproduction seeding.
 
-        Used by extinction recovery protocol to seed children from
-        the best available lineage.
+        v3.26: Dead organisms are excluded — only living organisms
+        eligible for reproduction are considered.  Dormant organisms
+        may be included (default) since they are alive and recoverable.
         """
         with self._lock:
             candidates = []
             for mid, m in self._members.items():
-                if not m.get("alive", True):
+                ls = m.get("lifecycle_state", LifecycleState.ACTIVE)
+                if ls == LifecycleState.DORMANT and not include_dormant:
                     continue
-                if m.get("state") == "dormant" and not include_dormant:
-                    continue
-                candidates.append(dict(m))
-            # Also include recently dead members (within last 50) as fallback
-            dead = [(mid, m) for mid, m in self._members.items() if not m.get("alive", True)]
-            dead.sort(key=lambda x: x[1].get("death_info", {}).get("death_time", ""), reverse=True)
-            for mid, m in dead[:50]:
                 candidates.append(dict(m))
         # Sort by fitness descending
         candidates.sort(key=lambda x: x.get("genome", {}).get("fitness", 0.0), reverse=True)
@@ -704,7 +897,8 @@ class Population:
     def trait_variance(self) -> Dict[str, float]:
         """Per-trait variance across all living members."""
         with self._lock:
-            living = [m for m in self._members.values() if m.get("alive", True)]
+            living = [m for m in self._members.values()
+                      if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))]
         if len(living) < 2:
             return {}
         all_trait_names: set = set()
@@ -723,7 +917,7 @@ class Population:
             return {
                 mid: m.get("genome", {}).get("traits", {})
                 for mid, m in self._members.items()
-                if m.get("alive", True)
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))
             }
 
     def population_fitness(self) -> Dict[str, float]:
@@ -732,7 +926,7 @@ class Population:
             return {
                 mid: m.get("genome", {}).get("fitness", 0.0)
                 for mid, m in self._members.items()
-                if m.get("alive", True)
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))
             }
 
     def champion(self) -> Optional[Dict[str, Any]]:
@@ -748,7 +942,7 @@ class Population:
             for mid, m in self._members.items():
                 if mid == self._parent_id:
                     continue  # skip founder
-                if not m.get("alive", True):
+                if not LifecycleState.is_simulated(m.get("lifecycle_state", LifecycleState.ACTIVE)):
                     continue
                 fit = m.get("genome", {}).get("fitness", 0.0)
                 if fit > best_fitness:
@@ -779,11 +973,11 @@ class Population:
             living = [
                 (mid, m.get("genome", {}).get("fitness", 0.0))
                 for mid, m in self._members.items()
-                if m.get("alive", True)
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))
             ]
-        if len(living) < 3:
             # Need at least 3 living members for elite distinction to matter
-            return []
+            if len(living) < 3:
+                return []
         # Sort by fitness descending
         living.sort(key=lambda x: x[1], reverse=True)
         n_elite = max(1, int(len(living) * top_fraction))
@@ -798,7 +992,8 @@ class Population:
             genome_entropy: Shannon entropy of genome hash distribution (bits)
         """
         with self._lock:
-            living = [m for m in self._members.values() if m.get("alive", True)]
+            living = [m for m in self._members.values()
+                      if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE))]
         if not living:
             return {"trait_stddev": {}, "unique_genome_hashes": 0, "genome_entropy": 0.0}
 
@@ -841,7 +1036,7 @@ class Population:
         with self._lock:
             return sum(
                 1 for mid, m in self._members.items()
-                if m.get("alive", True) and mid != self._parent_id
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE)) and mid != self._parent_id
             )
 
     @property
@@ -850,7 +1045,7 @@ class Population:
         with self._lock:
             gens = set()
             for m in self._members.values():
-                if m.get("alive", True):
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE)):
                     gens.add(m.get("generation_id", 0))
         return sorted(gens)
 
@@ -912,7 +1107,9 @@ class Population:
     def simulate_interactions(self) -> List[Dict[str, Any]]:
         """If population > 1, randomly transfer energy between living members."""
         with self._lock:
-            ids = [mid for mid, m in self._members.items() if m.get("alive", True)]
+            ids = [mid for mid, m in self._members.items()
+                   if LifecycleState.is_simulated(
+                       m.get("lifecycle_state", LifecycleState.ACTIVE))]
             if len(ids) < 2:
                 return []
 
@@ -950,7 +1147,9 @@ class Population:
     def cooperative_blend(self, mutation_delta: float = 0.02) -> Optional[Dict[str, Any]]:
         """Blend traits between two random living population members."""
         with self._lock:
-            ids = [mid for mid, m in self._members.items() if m.get("alive", True)]
+            ids = [mid for mid, m in self._members.items()
+                   if LifecycleState.is_simulated(
+                       m.get("lifecycle_state", LifecycleState.ACTIVE))]
             if len(ids) < 2:
                 return None
 
@@ -997,7 +1196,8 @@ class Population:
         with self._lock:
             living = [
                 m for m in self._members.values()
-                if m.get("alive", True) and m.get("state") != "dormant"
+                if LifecycleState.is_simulated(
+                    m.get("lifecycle_state", LifecycleState.ACTIVE))
             ]
         if len(living) < 2:
             return 0.0
@@ -1036,7 +1236,7 @@ class Population:
         with self._lock:
             census: Dict[str, List[str]] = {}
             for mid, m in self._members.items():
-                if not m.get("alive", True):
+                if not LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE)):
                     continue
                 sid = m.get("species_id", "default")
                 census.setdefault(sid, []).append(mid)
@@ -1108,9 +1308,8 @@ class Population:
         """
         fossils: List[Dict[str, Any]] = []
         with self._lock:
-            for mid, m in self._members.items():
-                if m.get("alive", True):
-                    continue
+            # v3.26: Dead organisms are in the graveyard, not _members
+            for mid, m in self._graveyard.items():
                 death_info = m.get("death_info", {})
                 fossil = {
                     "organism_id": mid,
@@ -1152,7 +1351,7 @@ class Population:
         living_species = set()
         with self._lock:
             for m in self._members.values():
-                if m.get("alive", True):
+                if LifecycleState.is_alive(m.get("lifecycle_state", LifecycleState.ACTIVE)):
                     living_species.add(m.get("species_id", "default"))
         extinct = [s for s in species_died if s not in living_species]
 
@@ -1186,6 +1385,70 @@ class Population:
                 json.dump(self._members, fh, indent=2, default=str)
         except Exception as exc:
             logger.error("[POPULATION] Failed to save population.json: %s", exc)
+
+    # v3.26: Graveyard persistence
+
+    def _load_graveyard(self) -> Dict[str, Dict[str, Any]]:
+        if not os.path.exists(self._graveyard_path):
+            return {}
+        try:
+            with open(self._graveyard_path, "r", encoding="utf-8") as fh:
+                raw = json.load(fh)
+            if isinstance(raw, dict):
+                return raw
+        except Exception as exc:
+            logger.warning("[POPULATION] Failed to load graveyard.json: %s", exc)
+        return {}
+
+    def _save_graveyard(self) -> None:
+        try:
+            with open(self._graveyard_path, "w", encoding="utf-8") as fh:
+                json.dump(self._graveyard, fh, indent=2, default=str)
+        except Exception as exc:
+            logger.error("[POPULATION] Failed to save graveyard.json: %s", exc)
+
+    def rescue_from_graveyard(self, organism_id: str) -> bool:
+        """v3.28: Rescue AL-01 from graveyard back to active _members.
+
+        Only used for founder protection — children must never be rescued.
+        Returns True if the organism was found in graveyard and restored.
+        """
+        if organism_id != "AL-01":
+            logger.error(
+                "[ERROR] rescue_from_graveyard called for non-founder %s — rejected",
+                organism_id,
+            )
+            return False
+        with self._lock:
+            entry = self._graveyard.pop(organism_id, None)
+            if entry is None:
+                return False
+            entry["alive"] = True
+            entry["lifecycle_state"] = LifecycleState.ACTIVE
+            entry["state"] = "idle"
+            entry["energy"] = 0.6
+            entry.pop("death_info", None)
+            self._members[organism_id] = entry
+            self._save()
+            self._save_graveyard()
+        logger.warning(
+            "[POPULATION] Rescued %s from graveyard → active members",
+            organism_id,
+        )
+        return True
+
+    def _prune_graveyard(self) -> None:
+        """Cap graveyard at GRAVEYARD_CAP, pruning the oldest entries."""
+        if len(self._graveyard) <= GRAVEYARD_CAP:
+            return
+        sorted_ids = sorted(
+            self._graveyard.keys(),
+            key=lambda k: self._graveyard[k].get("death_info", {}).get("death_time", ""),
+        )
+        while len(self._graveyard) > GRAVEYARD_CAP:
+            removed_id = sorted_ids.pop(0)
+            del self._graveyard[removed_id]
+            logger.info("[GRAVEYARD] Pruned oldest entry: %s", removed_id)
 
 
 def _utc_now() -> str:

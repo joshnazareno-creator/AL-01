@@ -182,14 +182,15 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
 <canvas id="canvas"></canvas>
 <div id="tooltip"></div>
 <div id="legend">
-  <b>Circle Size</b> = Fitness &nbsp; <b>Pulse</b> = Energy<br>
-  <b>Color</b> = <span style="color:#ff6b6b">Adapt</span> /
-                 <span style="color:#6bff6b">Efficiency</span> /
-                 <span style="color:#6b6bff">Resilience</span><br>
-  <b>Glow</b> = Awareness &nbsp; <b>Rings</b> = Evolutions<br>
-  <b>Vibrate</b> = High Energy &nbsp; <b>💀</b> = Dormant<br>
-  <b>👑</b> = Top 3 Fitness &nbsp; <b>⬡</b> = Parent AL-01<br>
-  <b>Trail</b> = Energy Particles &nbsp; <b>Heartbeat</b> = Alive pulse
+  <b>Sphere Size</b> = Fitness &nbsp; <b>Pulse</b> = Energy<br>
+  <b>Hue</b> = <span style="color:#ff6b6b">Adaptability</span> &nbsp;
+  <b>Bright</b> = <span style="color:#6bff6b">Efficiency</span> &nbsp;
+  <b>Rim</b> = <span style="color:#6b6bff">Resilience</span><br>
+  <b>Particles</b> = Perception &nbsp; <b>Pattern</b> = Creativity<br>
+  <b>Vibrate</b> = High Energy &nbsp; <b>&#x1F480;</b> = Dormant<br>
+  <b>&#x1F451;</b> = Top 3 Fitness &nbsp; <b>&#x2B21;</b> = Parent AL-01<br>
+  <b>Trail</b> = Movement Path &nbsp; <b>Heartbeat</b> = Alive pulse<br>
+  <b>Green Field</b> = Resource Rich &nbsp; <b>Red Field</b> = Scarce
 </div>
 <a id="back-link" href="/">← Dashboard</a>
 <div id="pool-label">🌍 Pool</div>
@@ -213,6 +214,47 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
   const AURA_PARTICLE_COUNT = 60;
   const TRAIL_MAX = 8;
   const HEARTBEAT_PERIOD = 1.2;
+  const MARBLE_SWIRL_SPEED = 0.25;
+  const MARBLE_PARTICLE_MAX = 24;
+
+  /* --- Spatial ecosystem constants --- */
+  const DRIFT_SPEED = 18;           // base px/s organism movement
+  const REPULSE_RADIUS_MULT = 3.5;  // repulsion starts at 3.5× organism radius
+  const REPULSE_STRENGTH = 110;     // repulsion force (stronger to prevent clumping at walls)
+  const RESOURCE_ATTRACT = 12;      // attraction toward resource-rich zones
+  const WANDER_STRENGTH = 8;        // random wander force
+  const VELOCITY_DAMPING = 0.92;    // friction per frame
+  const MOVE_TRAIL_LEN = 30;        // movement trail point count
+  const ENV_PARTICLE_COUNT = 100;   // floating env resource particles
+  const RESOURCE_FIELD_RES = 8;     // grid cell size for field vis (lower=finer)
+
+  /* --- Mobile-aware boundary constants (computed on resize) --- */
+  let BOUNDS_MARGIN = 60;           // soft wall margin (recalculated per screen)
+  let BOUNDS_FORCE = 90;            // wall avoidance force
+  const BOUNDS_RAMP_ZONE = 2.0;     // avoidance ramps up over this × BOUNDS_MARGIN
+  const CENTER_PULL = 4;            // gentle pull toward screen center
+  const CENTER_PULL_EDGE = 0.35;    // fraction of half-dim where center pull activates
+
+  /* --- Visual idle behaviour (visual-only, does not alter simulation) --- */
+  const EXPLORE_WANDER_RATE = 0.6;  // rad/s wander angle change for explorers
+  const EXPLORE_ARC_STRENGTH = 12;  // curved arc force for exploring organisms
+  const REST_DRIFT_MULT = 0.08;     // resting organisms drift at 8% speed
+  const REST_BREATHE_SPEED = 0.5;   // breathing oscillation Hz
+  const REST_BREATHE_AMP = 0.03;    // breathing scale amplitude
+  const REST_DIM_FACTOR = 0.78;     // dimming multiplier for resting organisms
+  const EXPLORE_PAUSE_PROB = 0.002; // per-frame chance of pause-turn-continue
+  const EXPLORE_PAUSE_DUR = 0.8;    // seconds to pause
+
+  /* --- Visual render-size scaling (display only, no sim change) --- */
+  const MIN_RENDER_RADIUS = 5;           // px — minimum bubble render size
+  const MAX_RENDER_RADIUS_PCT = 0.065;   // fraction of shorter screen dim (~6.5%)
+  const RENDER_BASE = 5;                 // base render radius (px)
+  const RENDER_SCALE = 22;               // max additional px from fitness
+  const POP_SCALE_THRESHOLD = 25;        // start shrinking above this count
+  const POP_SCALE_MIN = 0.55;            // smallest pop-based multiplier
+  const CROWDING_RADIUS_MULT = 2.5;      // distance for crowding check (× renderR)
+  const CROWDING_SHRINK_MIN = 0.7;       // max shrink from crowding
+  const CROWDING_ALPHA_MIN = 0.55;       // max alpha reduction from crowding
 
   /* ================= DOM REFS ================= */
   const canvas = document.getElementById('canvas');
@@ -228,6 +270,8 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
   let shockActive = false;
   let leaderIds = new Set();
   let time = 0;
+  let envParticles = [];   // floating resource particles in the environment
+  let resourceField = [];  // 2D grid of resource concentration values
 
   /* ================= AURA PARTICLES ================= */
   let auraParticles = [];
@@ -255,8 +299,23 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    layoutGrid();
+
+    // Mobile-aware boundary: bigger margin on small screens
+    const shortDim = Math.min(w, h);
+    if(shortDim < 500){
+      BOUNDS_MARGIN = Math.max(50, shortDim * 0.14);
+      BOUNDS_FORCE = 120;
+    } else if(shortDim < 900){
+      BOUNDS_MARGIN = Math.max(55, shortDim * 0.10);
+      BOUNDS_FORCE = 100;
+    } else {
+      BOUNDS_MARGIN = 60;
+      BOUNDS_FORCE = 90;
+    }
+
+    syncOrganisms();
     if(!auraParticles.length) initAura();
+    initEnvParticles();
   }
   window.addEventListener('resize', resize);
 
@@ -279,48 +338,422 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
     return vals[0].name;
   }
 
-  /* ================= GRID LAYOUT ================= */
-  function layoutGrid(){
+  /* ================= SPATIAL ECOSYSTEM ================= */
+  function initEnvParticles(){
+    const W = window.innerWidth, H = window.innerHeight;
+    envParticles = [];
+    for(let i = 0; i < ENV_PARTICLE_COUNT; i++){
+      envParticles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random()-0.5) * 6,
+        vy: (Math.random()-0.5) * 6,
+        size: 1.5 + Math.random() * 3,
+        life: 0.5 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  // Build / update resource concentration field
+  function updateResourceField(W, H){
+    const cols = Math.ceil(W / RESOURCE_FIELD_RES);
+    const rows = Math.ceil(H / RESOURCE_FIELD_RES);
+    // Simple procedural field: higher near centre, perturbed by time + scarcity
+    resourceField = [];
+    const cx0 = W / 2, cy0 = H / 2;
+    const maxDist = Math.sqrt(cx0*cx0 + cy0*cy0);
+    for(let r = 0; r < rows; r++){
+      const row = [];
+      for(let c = 0; c < cols; c++){
+        const px = c * RESOURCE_FIELD_RES + RESOURCE_FIELD_RES/2;
+        const py = r * RESOURCE_FIELD_RES + RESOURCE_FIELD_RES/2;
+        const dx = px - cx0, dy = py - cy0;
+        const dist = Math.sqrt(dx*dx + dy*dy) / maxDist;
+        // Base: radial falloff from centre
+        let val = (1 - dist * 0.7) * poolFraction;
+        // Perlin-ish noise via sin waves
+        val += 0.15 * Math.sin(px*0.008 + time*0.15) * Math.cos(py*0.01 + time*0.12);
+        val += 0.1 * Math.sin(px*0.015 - time*0.08) * Math.sin(py*0.012 + time*0.1);
+        // Scarcity drains edges more
+        if(isScarcity) val *= 0.4 + 0.6 * (1 - dist);
+        row.push(Math.max(0, Math.min(1, val)));
+      }
+      resourceField.push(row);
+    }
+    return {cols, rows};
+  }
+
+  // Sample resource field at world position
+  function sampleResource(px, py){
+    if(!resourceField.length) return 0.5;
+    const col = Math.floor(px / RESOURCE_FIELD_RES);
+    const row = Math.floor(py / RESOURCE_FIELD_RES);
+    if(row < 0 || row >= resourceField.length) return 0;
+    if(col < 0 || col >= resourceField[0].length) return 0;
+    return resourceField[row][col];
+  }
+
+  // Compute resource gradient at position (which direction has more resources)
+  function resourceGradient(px, py){
+    const step = RESOURCE_FIELD_RES * 2;
+    const vl = sampleResource(px - step, py);
+    const vr = sampleResource(px + step, py);
+    const vu = sampleResource(px, py - step);
+    const vd = sampleResource(px, py + step);
+    return { gx: vr - vl, gy: vd - vu };
+  }
+
+  /* ================= VISUAL SCALING ================= */
+  // Compute display-only render radius — does NOT affect simulation/physics.
+  // Uses sqrt-compressed fitness, population scaling, and screen-size capping.
+  function visualRadius(fitness, popCount){
+    // 1. Sqrt-compressed fitness curve (0→0, 0.25→0.5, 1→1)
+    const f = Math.sqrt(Math.max(0, Math.min(1, fitness || 0)));
+    // 2. Base + scaled
+    let r = RENDER_BASE + f * RENDER_SCALE;
+    // 3. Population-aware shrink
+    if(popCount > POP_SCALE_THRESHOLD){
+      const excess = (popCount - POP_SCALE_THRESHOLD) / POP_SCALE_THRESHOLD;
+      r *= Math.max(POP_SCALE_MIN, 1 - excess * 0.35);
+    }
+    // 4. Screen-size hard cap (mobile-first)
+    const maxR = Math.min(window.innerWidth, window.innerHeight) * MAX_RENDER_RADIUS_PCT;
+    r = Math.min(r, maxR);
+    // 5. Floor
+    return Math.max(MIN_RENDER_RADIUS, r);
+  }
+
+  // Per-frame crowding analysis — returns {shrink, alpha} per circle index
+  let crowdingFactors = [];
+  function computeCrowding(){
+    crowdingFactors.length = circles.length;
+    for(let i = 0; i < circles.length; i++){
+      let neighbors = 0;
+      let overlapSum = 0;
+      const ci = circles[i];
+      const rr = ci.renderR || ci.r;
+      const threshold = rr * CROWDING_RADIUS_MULT;
+      for(let j = 0; j < circles.length; j++){
+        if(j === i) continue;
+        const cj = circles[j];
+        const dx = ci.x - cj.x;
+        const dy = ci.y - cj.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const combined = rr + (cj.renderR || cj.r);
+        if(dist < combined * 1.6){
+          neighbors++;
+          overlapSum += 1 - dist / (combined * 1.6);
+        }
+      }
+      // More neighbors + more overlap → more shrink
+      const density = Math.min(1, overlapSum * 0.4);
+      crowdingFactors[i] = {
+        shrink: 1 - density * (1 - CROWDING_SHRINK_MIN),
+        alpha:  1 - density * (1 - CROWDING_ALPHA_MIN)
+      };
+    }
+  }
+
+  // Sync organisms array to circles (spatial placement, preserve positions)
+  function syncOrganisms(){
     const n = organisms.length;
-    if(!n) return;
+    if(!n){ circles.length = 0; return; }
     const W = window.innerWidth;
     const H = window.innerHeight;
     const headerH = 50;
-    const availW = W - PADDING * 2;
-    const availH = H - headerH - PADDING * 2;
-    const cols = Math.max(1, Math.ceil(Math.sqrt(n * (availW / availH))));
-    const rows = Math.max(1, Math.ceil(n / cols));
-    const cellW = availW / cols;
-    const cellH = availH / rows;
 
-    // Determine top-3 fitness leaders
+    // Determine leaders
     const sorted = organisms.slice().sort((a,b) => (b.fitness||0) - (a.fitness||0));
     leaderIds = new Set(sorted.slice(0, Math.min(LEADER_COUNT, n)).map(o => o.id));
 
+    // Build id→circle map for existing circles
+    const existing = {};
+    for(let i = 0; i < circles.length; i++){
+      if(circles[i] && circles[i].data) existing[circles[i].data.id] = circles[i];
+    }
+
+    const newCircles = [];
     for(let i = 0; i < n; i++){
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const tx = PADDING + col * cellW + cellW / 2;
-      const ty = headerH + PADDING + row * cellH + cellH / 2;
       const o = organisms[i];
-      const r = BASE_R + (o.fitness || 0) * SCALE_R;
+      const r = BASE_R + (o.fitness || 0) * SCALE_R;          // physics radius (unchanged)
+      const vr = visualRadius(o.fitness, n);                   // display radius
       const c = traitColor(o.traits || {});
-      if(circles[i]){
-        circles[i].targetX = tx;
-        circles[i].targetY = ty;
-        circles[i].targetR = r;
-        circles[i].color = c;
-        circles[i].data = o;
+      const prev = existing[o.id];
+      if(prev){
+        // Update data but keep spatial position
+        prev.targetR = r;
+        prev.targetRenderR = vr;
+        prev.color = c;
+        prev.data = o;
+        // Update visual idle state from real data
+        prev.visualState = classifyVisualState(o);
+        newCircles.push(prev);
       } else {
-        circles[i] = {x: tx, y: ty, targetX: tx, targetY: ty,
-                       r: r, targetR: r, color: c, data: o,
-                       shimmerPhase: Math.random() * Math.PI * 2,
-                       crownAngle: Math.random() * Math.PI * 2,
-                       trail: [],
-                       heartbeatPhase: Math.random() * Math.PI * 2};
+        // New organism: spawn biased toward interior (Gaussian-ish)
+        const cx0 = W / 2, cy0 = (headerH + H) / 2;
+        const spreadX = (W - BOUNDS_MARGIN * 4) * 0.35;
+        const spreadY = (H - headerH - BOUNDS_MARGIN * 4) * 0.35;
+        const spawnX = cx0 + (Math.random() + Math.random() - 1) * spreadX;
+        const spawnY = cy0 + (Math.random() + Math.random() - 1) * spreadY;
+        newCircles.push({
+          x: Math.max(BOUNDS_MARGIN, Math.min(W - BOUNDS_MARGIN, spawnX)),
+          y: Math.max(headerH + BOUNDS_MARGIN, Math.min(H - BOUNDS_MARGIN, spawnY)),
+          vx: (Math.random()-0.5) * 6, vy: (Math.random()-0.5) * 6,
+          r: r, targetR: r,
+          renderR: vr, targetRenderR: vr,
+          color: c, data: o,
+          shimmerPhase: Math.random() * Math.PI * 2,
+          crownAngle: Math.random() * Math.PI * 2,
+          trail: [],
+          heartbeatPhase: Math.random() * Math.PI * 2,
+          wanderAngle: Math.random() * Math.PI * 2,
+          moveTrail: [],
+          visualState: classifyVisualState(o),
+          pauseTimer: 0,
+          wanderCurvature: (Math.random() - 0.5) * 0.5
+        });
       }
     }
-    circles.length = n;
+    circles = newCircles;
+  }
+
+  /* ================= VISUAL STATE CLASSIFICATION (visual-only) ================= */
+  // Derives a display-only behaviour mode from real organism data.
+  // Does NOT alter organism state, fitness, energy, or any simulation value.
+  function classifyVisualState(o){
+    if(o.state === 'dormant') return 'sleeping';
+    const energy = o.energy || 0;
+    const fitness = o.fitness || 0;
+    const stagnation = o.stagnation || 0;
+    // Low energy or high stagnation → resting
+    if(energy < 0.25 || stagnation > 0.6) return 'resting';
+    // Moderate energy, moderate fitness → exploring
+    if(energy > 0.35 && fitness > 0.2) return 'exploring';
+    // Default fallback
+    return energy > 0.15 ? 'exploring' : 'resting';
+  }
+
+  // Smooth cubic wall-avoidance ramp: returns 0 far from wall, ramps to 1 at wall
+  function wallRamp(pos, wallPos, margin){
+    const dist = Math.abs(pos - wallPos);
+    if(dist >= margin) return 0;
+    const t = 1 - dist / margin;  // 0 at edge of zone, 1 at wall
+    return t * t * (3 - 2 * t);   // smoothstep — no jitter, organic curve
+  }
+
+  /* ================= PHYSICS STEP ================= */
+  function physicsStep(dt){
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const headerH = 50;
+    const margin = BOUNDS_MARGIN;
+    const rampZone = margin * BOUNDS_RAMP_ZONE; // avoidance activates further out
+    const minY = headerH + margin;
+    const maxY = H - margin;
+    const minX = margin;
+    const maxX = W - margin;
+    const midX = W / 2, midY = (headerH + H) / 2;
+    const halfW = (W - margin * 2) / 2;
+    const halfH = (H - headerH - margin * 2) / 2;
+
+    for(let i = 0; i < circles.length; i++){
+      const c = circles[i];
+      const o = c.data;
+      const energy = o.energy || 0;
+      const isDormant = o.state === 'dormant';
+      const vs = c.visualState || 'exploring';
+      const isResting = vs === 'resting' || vs === 'sleeping';
+
+      // Speed varies by visual state
+      let speed;
+      if(isDormant) speed = DRIFT_SPEED * 0.08;
+      else if(isResting) speed = DRIFT_SPEED * REST_DRIFT_MULT;
+      else speed = DRIFT_SPEED * (0.4 + energy * 0.8);
+
+      let fx = 0, fy = 0;
+
+      // --- Pause-turn-continue for explorers ---
+      if(!c.pauseTimer) c.pauseTimer = 0;
+      if(c.pauseTimer > 0){
+        c.pauseTimer -= dt;
+        // During pause: only boundary + repulsion forces, no wander
+      } else {
+        // 1. Wander — organic curved steering
+        if(!isResting){
+          // Smooth curvature-based wander (arcs, not jitter)
+          if(!c.wanderCurvature) c.wanderCurvature = (Math.random() - 0.5) * 0.5;
+          // Slowly evolve curvature for natural-looking arcs
+          c.wanderCurvature += (Math.random() - 0.5) * 0.3 * dt;
+          c.wanderCurvature = Math.max(-1.2, Math.min(1.2, c.wanderCurvature));
+          c.wanderAngle = (c.wanderAngle || 0) + c.wanderCurvature * EXPLORE_WANDER_RATE * dt;
+          fx += Math.cos(c.wanderAngle) * EXPLORE_ARC_STRENGTH;
+          fy += Math.sin(c.wanderAngle) * EXPLORE_ARC_STRENGTH;
+          // Occasional pause-turn-continue
+          if(Math.random() < EXPLORE_PAUSE_PROB){
+            c.pauseTimer = EXPLORE_PAUSE_DUR * (0.5 + Math.random());
+            c.wanderCurvature = (Math.random() - 0.5) * 1.0; // new direction after pause
+          }
+        } else {
+          // Resting: very gentle float
+          c.wanderAngle = (c.wanderAngle || 0) + (Math.random()-0.5) * 0.2 * dt;
+          fx += Math.cos(c.wanderAngle) * WANDER_STRENGTH * 0.15;
+          fy += Math.sin(c.wanderAngle) * WANDER_STRENGTH * 0.15;
+        }
+      }
+
+      // 2. Resource attraction — move toward higher resource concentration
+      if(!isDormant && !isResting){
+        const grad = resourceGradient(c.x, c.y);
+        fx += grad.gx * RESOURCE_ATTRACT * (1 + (1 - energy) * 2);
+        fy += grad.gy * RESOURCE_ATTRACT * (1 + (1 - energy) * 2);
+      }
+
+      // 3. Organism repulsion — avoid overlap
+      for(let j = 0; j < circles.length; j++){
+        if(j === i) continue;
+        const other = circles[j];
+        const dx = c.x - other.x;
+        const dy = c.y - other.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const minDist = (c.r + other.r) * REPULSE_RADIUS_MULT;
+        if(dist < minDist){
+          const overlap = 1 - dist / minDist;
+          const force = overlap * overlap * REPULSE_STRENGTH; // quadratic for smoother feel
+          fx += (dx / dist) * force;
+          fy += (dy / dist) * force;
+        }
+      }
+
+      // 4. Hover repulsion
+      if(hoveredIdx >= 0 && i !== hoveredIdx){
+        const hc = circles[hoveredIdx];
+        const dx = c.x - hc.x;
+        const dy = c.y - hc.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+        if(dist < HOVER_REPULSE_RADIUS){
+          const force = (1 - dist/HOVER_REPULSE_RADIUS) * HOVER_REPULSE_FORCE * 2;
+          fx += (dx/dist) * force;
+          fy += (dy/dist) * force;
+        }
+      }
+
+      // 5. Smooth boundary avoidance — cubic ramp (organic, no bounce)
+      const rL = wallRamp(c.x, 0, rampZone);
+      const rR = wallRamp(c.x, W, rampZone);
+      const rT = wallRamp(c.y, headerH, rampZone);
+      const rB = wallRamp(c.y, H, rampZone);
+      fx += rL * BOUNDS_FORCE;           // push right when near left wall
+      fx -= rR * BOUNDS_FORCE;           // push left when near right wall
+      fy += rT * BOUNDS_FORCE;           // push down when near top
+      fy -= rB * BOUNDS_FORCE;           // push up when near bottom
+
+      // Also steer wanderAngle away from nearby walls (prevents aiming at wall)
+      if(rL > 0.1 || rR > 0.1 || rT > 0.1 || rB > 0.1){
+        const awayAngle = Math.atan2(midY - c.y, midX - c.x);
+        const wallStrength = Math.max(rL, rR, rT, rB);
+        c.wanderAngle = c.wanderAngle + (awayAngle - c.wanderAngle) * wallStrength * 0.3 * dt * 5;
+      }
+
+      // 6. Gentle center pull for organisms far from centre (prevents edge crowding)
+      const offX = (c.x - midX) / halfW;  // -1..1
+      const offY = (c.y - midY) / halfH;
+      const edgeDist = Math.max(Math.abs(offX), Math.abs(offY));
+      if(edgeDist > CENTER_PULL_EDGE){
+        const pull = (edgeDist - CENTER_PULL_EDGE) / (1 - CENTER_PULL_EDGE);
+        fx += (midX - c.x) / halfW * CENTER_PULL * pull * pull;
+        fy += (midY - c.y) / halfH * CENTER_PULL * pull * pull;
+      }
+
+      // Apply forces to velocity
+      c.vx = (c.vx || 0) + fx * dt;
+      c.vy = (c.vy || 0) + fy * dt;
+
+      // Clamp velocity
+      const vel = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+      const maxVel = speed * 3;
+      if(vel > maxVel){
+        c.vx = c.vx / vel * maxVel;
+        c.vy = c.vy / vel * maxVel;
+      }
+
+      // Damping (stronger for resting organisms — settle faster)
+      const damp = isResting ? 0.88 : VELOCITY_DAMPING;
+      c.vx *= damp;
+      c.vy *= damp;
+
+      // Integrate position
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+
+      // Hard clamp (safety net — should rarely be hit with smooth forces)
+      c.x = Math.max(margin * 0.3, Math.min(W - margin * 0.3, c.x));
+      c.y = Math.max(headerH + 8, Math.min(H - 8, c.y));
+
+      // Smooth radius (physics + render independently)
+      c.r = lerp(c.r, c.targetR, 0.1);
+      c.renderR = lerp(c.renderR || c.r, c.targetRenderR || c.targetR, 0.1);
+
+      // Record movement trail
+      if(!c.moveTrail) c.moveTrail = [];
+      c.moveTrail.push({x: c.x, y: c.y, age: 0});
+      if(c.moveTrail.length > MOVE_TRAIL_LEN) c.moveTrail.shift();
+      for(let mt of c.moveTrail) mt.age += dt;
+    }
+  }
+
+  /* ================= ENV PARTICLE PHYSICS ================= */
+  function updateEnvParticles(dt, W, H){
+    // Spawn replacements
+    while(envParticles.length < ENV_PARTICLE_COUNT){
+      envParticles.push({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
+        size: 1.5 + Math.random()*3,
+        life: 0.5 + Math.random()*0.5,
+        phase: Math.random() * Math.PI*2
+      });
+    }
+    for(let i = envParticles.length - 1; i >= 0; i--){
+      const p = envParticles[i];
+      // Drift toward nearby organisms (attraction to life)
+      let ax = 0, ay = 0;
+      for(let c of circles){
+        const dx = c.x - p.x, dy = c.y - p.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+        if(dist < 150){
+          const pull = (1 - dist/150) * 20 * (c.data.energy||0.5);
+          ax += (dx/dist) * pull;
+          ay += (dy/dist) * pull;
+        }
+        // Consumed: if particle very close to organism, fade it
+        if(dist < c.r * 1.2){
+          p.life -= dt * 3;
+        }
+      }
+      p.vx += ax * dt;
+      p.vy += ay * dt;
+      p.vx *= 0.96; p.vy *= 0.96;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      // Wrap
+      if(p.x < 0) p.x = W; if(p.x > W) p.x = 0;
+      if(p.y < 0) p.y = H; if(p.y > H) p.y = 0;
+      p.life -= dt * 0.08;
+      if(p.life <= 0){
+        // Respawn — prefer resource-rich areas
+        p.x = Math.random() * W; p.y = Math.random() * H;
+        const res = sampleResource(p.x, p.y);
+        if(res < 0.3 && Math.random() > res){
+          // Try again in richer area (bias toward centre)
+          p.x = W * 0.2 + Math.random() * W * 0.6;
+          p.y = H * 0.2 + Math.random() * H * 0.6;
+        }
+        p.vx = (Math.random()-0.5)*6; p.vy = (Math.random()-0.5)*6;
+        p.life = 0.5 + Math.random()*0.5;
+        p.size = 1.5 + Math.random()*3;
+      }
+    }
   }
 
   /* ================= ANIMATION HELPERS ================= */
@@ -339,7 +772,383 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
     }
   }
 
-  /* ================= DRAW AURA FIELD ================= */
+  /* ================= SEEDED RNG (from genome hash) ================= */
+  function hashToSeed(id){
+    let h = 0;
+    const s = String(id);
+    for(let i = 0; i < s.length; i++){
+      h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  }
+  function seededRng(seed){
+    let s = seed | 0 || 1;
+    return function(){
+      s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+      return ((s >>> 0) / 4294967296);
+    };
+  }
+
+  /* ================= MARBLE PATTERN TYPES ================= */
+  // Returns a function(ctx, cx, cy, r, time, rng, traits) that draws the pattern
+  function getPatternDrawer(patternIdx){
+    const drawers = [
+      drawMarbleVeins,
+      drawNebulaPattern,
+      drawCrystalInclusions,
+      drawGalaxyCluster,
+      drawLiquidBands
+    ];
+    return drawers[patternIdx % drawers.length];
+  }
+
+  // Pattern 0: Swirling marble veins
+  function drawMarbleVeins(ctx, cx, cy, r, t, rng, traits){
+    const complexity = 3 + Math.floor((traits.creativity||0.5) * 6);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.clip();
+    ctx.globalAlpha = 0.25;
+    for(let v = 0; v < complexity; v++){
+      const baseAngle = rng() * Math.PI * 2 + t * MARBLE_SWIRL_SPEED * (v%2===0?1:-1);
+      const width = 0.5 + rng() * 2;
+      const amp = r * (0.3 + rng() * 0.4);
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.15 + rng()*0.2) + ')';
+      ctx.lineWidth = width;
+      for(let s = 0; s <= 20; s++){
+        const frac = s / 20;
+        const angle = baseAngle + frac * Math.PI * (1.5 + rng());
+        const dist = frac * r * 0.9;
+        const wobble = Math.sin(frac * Math.PI * (2+v) + t*0.5) * amp * 0.15;
+        const px = cx + Math.cos(angle) * (dist + wobble);
+        const py = cy + Math.sin(angle) * (dist + wobble);
+        if(s===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Pattern 1: Cloudy nebula
+  function drawNebulaPattern(ctx, cx, cy, r, t, rng, traits){
+    const density = 4 + Math.floor((traits.creativity||0.5) * 8);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.clip();
+    for(let i = 0; i < density; i++){
+      const angle = rng() * Math.PI * 2 + t * 0.15 * (i%2===0?1:-1);
+      const dist = rng() * r * 0.7;
+      const nx = cx + Math.cos(angle + t*0.1) * dist;
+      const ny = cy + Math.sin(angle + t*0.1) * dist;
+      const blobR = r * (0.2 + rng() * 0.35);
+      const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, blobR);
+      const hue = (rng() * 60 - 30 + (traits.adaptability||0.5) * 360) % 360;
+      g.addColorStop(0, 'hsla('+hue+',60%,70%,0.15)');
+      g.addColorStop(1, 'hsla('+hue+',60%,40%,0)');
+      ctx.beginPath();
+      ctx.arc(nx, ny, blobR, 0, Math.PI*2);
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Pattern 2: Crystal inclusions
+  function drawCrystalInclusions(ctx, cx, cy, r, t, rng, traits){
+    const count = 3 + Math.floor((traits.creativity||0.5) * 7);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.clip();
+    ctx.globalAlpha = 0.3;
+    for(let i = 0; i < count; i++){
+      const angle = rng() * Math.PI * 2;
+      const dist = rng() * r * 0.6;
+      const px = cx + Math.cos(angle + t*0.08) * dist;
+      const py = cy + Math.sin(angle + t*0.08) * dist;
+      const sides = 3 + Math.floor(rng() * 4);
+      const cSize = r * (0.08 + rng() * 0.15);
+      const rot = rng() * Math.PI + t * 0.2;
+      ctx.beginPath();
+      for(let s = 0; s <= sides; s++){
+        const a = rot + (Math.PI * 2 / sides) * s;
+        const x = px + Math.cos(a) * cSize;
+        const y = py + Math.sin(a) * cSize;
+        if(s===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + rng()*0.1) + ')';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + rng()*0.15) + ')';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Pattern 3: Galaxy-like particle cluster
+  function drawGalaxyCluster(ctx, cx, cy, r, t, rng, traits){
+    const armCount = 2 + Math.floor((traits.creativity||0.5) * 3);
+    const particles = 20 + Math.floor((traits.perception||0.5) * 40);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.clip();
+    for(let arm = 0; arm < armCount; arm++){
+      const armAngle = (Math.PI * 2 / armCount) * arm + t * MARBLE_SWIRL_SPEED * 0.5;
+      for(let p = 0; p < Math.floor(particles/armCount); p++){
+        const frac = (p + rng()) / (particles/armCount);
+        const spiralAngle = armAngle + frac * Math.PI * 2.5;
+        const dist = frac * r * 0.85;
+        const spread = (rng()-0.5) * r * 0.15;
+        const px = cx + Math.cos(spiralAngle) * dist + Math.cos(spiralAngle+1.57) * spread;
+        const py = cy + Math.sin(spiralAngle) * dist + Math.sin(spiralAngle+1.57) * spread;
+        const pSize = 0.5 + rng() * 1.5;
+        const alpha = (1 - frac) * 0.4;
+        ctx.beginPath();
+        ctx.arc(px, py, pSize, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Pattern 4: Flowing liquid bands
+  function drawLiquidBands(ctx, cx, cy, r, t, rng, traits){
+    const bandCount = 3 + Math.floor((traits.creativity||0.5) * 5);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.clip();
+    ctx.globalAlpha = 0.2;
+    for(let b = 0; b < bandCount; b++){
+      const yOff = (rng() - 0.5) * r * 1.6;
+      const amp = r * (0.1 + rng() * 0.25);
+      const freq = 1.5 + rng() * 2;
+      const phase = rng() * Math.PI * 2 + t * MARBLE_SWIRL_SPEED;
+      const width = r * (0.04 + rng() * 0.08);
+      ctx.beginPath();
+      for(let s = 0; s <= 30; s++){
+        const frac = s / 30;
+        const x = cx - r + frac * r * 2;
+        const y = cy + yOff + Math.sin(frac * freq * Math.PI + phase) * amp;
+        if(s===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + rng()*0.15) + ')';
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ================= MARBLE INTERNAL PARTICLES ================= */
+  // Per-organism floating internal particles (awareness / energy driven)
+  function updateMarbleParticles(c, cx, cy, drawR, dt, traits){
+    if(!c.marbleParticles) c.marbleParticles = [];
+    const targetCount = Math.floor((traits.perception||0.5) * MARBLE_PARTICLE_MAX);
+    // Spawn
+    while(c.marbleParticles.length < targetCount){
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * drawR * 0.7;
+      c.marbleParticles.push({
+        angle: angle,
+        dist: dist,
+        speed: 0.2 + Math.random() * 0.5,
+        size: 0.5 + Math.random() * 1.5,
+        phase: Math.random() * Math.PI * 2,
+        brightness: 0.3 + Math.random() * 0.7
+      });
+    }
+    // Trim
+    while(c.marbleParticles.length > targetCount && c.marbleParticles.length > 0){
+      c.marbleParticles.pop();
+    }
+    // Update and draw
+    for(let p of c.marbleParticles){
+      p.angle += p.speed * dt;
+      p.dist += Math.sin(p.phase + time) * 0.3;
+      p.dist = Math.max(0, Math.min(drawR * 0.75, p.dist));
+      const px = cx + Math.cos(p.angle) * p.dist;
+      const py = cy + Math.sin(p.angle) * p.dist;
+      const alpha = p.brightness * (0.3 + 0.2 * Math.sin(time * 2 + p.phase));
+      ctx.beginPath();
+      ctx.arc(px, py, p.size, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
+      ctx.fill();
+    }
+  }
+
+  /* ================= DRAW MARBLE ORGANISM ================= */
+  function drawMarble(ctx, c, cx, cy, drawR, isDormant, time){
+    const o = c.data;
+    const traits = o.traits || {};
+    const energy = o.energy || 0;
+    const fitness = o.fitness || 0;
+
+    // Deterministic seed from organism id
+    const seed = hashToSeed(o.id || 'default');
+    const rng = seededRng(seed);
+    // Pick pattern type: determined by seed
+    const patternIdx = seed % 5;
+
+    // --- Trait-to-visual mapping ---
+    // Adaptability → hue, Efficiency → brightness, Resilience → rim glow
+    const hue = (traits.adaptability || 0.5) * 360;
+    const brightness = 30 + (traits.energy_efficiency || 0.5) * 45;
+    const saturation = 50 + (traits.creativity || 0.5) * 30;
+    const rimStrength = (traits.resilience || 0.5);
+
+    // === LAYER 0: Drop shadow ===
+    if(!isDormant){
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx + 2, cy + drawR * 0.9, drawR * 0.7, drawR * 0.18, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Clip to sphere
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, drawR, 0, Math.PI*2);
+    ctx.clip();
+
+    // === LAYER 1: Base color sphere (HSL from traits) ===
+    if(isDormant){
+      const bGrad = ctx.createRadialGradient(
+        cx - drawR*0.3, cy - drawR*0.3, drawR*0.05,
+        cx, cy, drawR
+      );
+      bGrad.addColorStop(0, 'hsl(0,0%,45%)');
+      bGrad.addColorStop(0.6, 'hsl(0,0%,30%)');
+      bGrad.addColorStop(1, 'hsl(0,0%,15%)');
+      ctx.fillStyle = bGrad;
+      ctx.fillRect(cx-drawR, cy-drawR, drawR*2, drawR*2);
+    } else {
+      const bGrad = ctx.createRadialGradient(
+        cx - drawR*0.35, cy - drawR*0.35, drawR*0.05,
+        cx + drawR*0.1, cy + drawR*0.1, drawR
+      );
+      bGrad.addColorStop(0, 'hsl('+hue+','+saturation+'%,'+(brightness+20)+'%)');
+      bGrad.addColorStop(0.5, 'hsl('+hue+','+saturation+'%,'+brightness+'%)');
+      bGrad.addColorStop(1, 'hsl('+hue+','+(saturation-10)+'%,'+(brightness-15)+'%)');
+      ctx.fillStyle = bGrad;
+      ctx.fillRect(cx-drawR, cy-drawR, drawR*2, drawR*2);
+    }
+
+    // === LAYER 2: Internal pattern (genome-determined) ===
+    if(!isDormant){
+      const drawer = getPatternDrawer(patternIdx);
+      // Reset rng for consistency
+      const patRng = seededRng(seed + 42);
+      drawer(ctx, cx, cy, drawR, time, patRng, traits);
+    }
+
+    // === LAYER 3: Floating internal particles (perception-driven) ===
+    if(!isDormant){
+      updateMarbleParticles(c, cx, cy, drawR, 1/60, traits);
+    }
+
+    // === LAYER 4: Energy inner glow ===
+    if(!isDormant && energy > 0.3){
+      const glowIntensity = (energy - 0.3) / 0.7;
+      const pulseGlow = glowIntensity * (0.8 + 0.2 * Math.sin(time * 2));
+      const eGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, drawR * 0.8);
+      eGrad.addColorStop(0, 'hsla('+((hue+30)%360)+',80%,70%,'+(pulseGlow*0.15)+')');
+      eGrad.addColorStop(0.5, 'hsla('+hue+',60%,60%,'+(pulseGlow*0.06)+')');
+      eGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = eGrad;
+      ctx.fillRect(cx-drawR, cy-drawR, drawR*2, drawR*2);
+    }
+
+    ctx.restore(); // End sphere clip
+
+    // === LAYER 5: Rim lighting (resilience-driven) ===
+    if(!isDormant){
+      ctx.save();
+      const rimGrad = ctx.createRadialGradient(cx, cy, drawR*0.85, cx, cy, drawR);
+      const rimAlpha = 0.1 + rimStrength * 0.35;
+      const pulseRim = rimAlpha * (0.85 + 0.15 * Math.sin(time * 1.5));
+      rimGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      rimGrad.addColorStop(0.7, 'rgba(0,0,0,0)');
+      rimGrad.addColorStop(1, 'hsla('+((hue+180)%360)+',50%,70%,'+pulseRim+')');
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR, 0, Math.PI*2);
+      ctx.fillStyle = rimGrad;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // === LAYER 6: Glass sphere shading (curvature + depth) ===
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, drawR, 0, Math.PI*2);
+    // Darkened edges for spherical depth
+    const depthGrad = ctx.createRadialGradient(
+      cx - drawR*0.2, cy - drawR*0.2, drawR*0.1,
+      cx, cy, drawR
+    );
+    depthGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+    depthGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
+    depthGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+    ctx.fillStyle = depthGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // === LAYER 7: Primary specular highlight (top-left) ===
+    ctx.save();
+    const hlX = cx - drawR * 0.32;
+    const hlY = cy - drawR * 0.32;
+    const hlR = drawR * 0.45;
+    const hlGrad = ctx.createRadialGradient(hlX, hlY, 0, hlX, hlY, hlR);
+    hlGrad.addColorStop(0, 'rgba(255,255,255,0.55)');
+    hlGrad.addColorStop(0.4, 'rgba(255,255,255,0.15)');
+    hlGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, drawR, 0, Math.PI*2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.arc(hlX, hlY, hlR, 0, Math.PI*2);
+    ctx.fillStyle = hlGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // === LAYER 8: Small secondary specular (glass reflection) ===
+    ctx.save();
+    const h2X = cx + drawR * 0.18;
+    const h2Y = cy + drawR * 0.28;
+    const h2R = drawR * 0.12;
+    const h2Grad = ctx.createRadialGradient(h2X, h2Y, 0, h2X, h2Y, h2R);
+    h2Grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+    h2Grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, drawR, 0, Math.PI*2);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.arc(h2X, h2Y, h2R, 0, Math.PI*2);
+    ctx.fillStyle = h2Grad;
+    ctx.fill();
+    ctx.restore();
+
+    // === LAYER 9: Glass edge highlight ring ===
+    if(!isDormant){
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR - 0.5, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /* ================= DRAW AURA FIELD + RESOURCE FIELD ================= */
   function drawAura(W, H, dt){
     // Background tint based on pool health
     const health = poolFraction;
@@ -348,6 +1157,28 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
     const bgB = Math.round(lerp(10, 20, health));
     ctx.fillStyle = 'rgb('+bgR+','+bgG+','+bgB+')';
     ctx.fillRect(0, 0, W, H);
+
+    // Resource concentration field — faint green/red tint showing abundance/scarcity
+    const fieldInfo = updateResourceField(W, H);
+    if(resourceField.length){
+      for(let r = 0; r < fieldInfo.rows; r++){
+        for(let c = 0; c < fieldInfo.cols; c++){
+          const val = resourceField[r][c];
+          if(val < 0.01) continue;
+          const px = c * RESOURCE_FIELD_RES;
+          const py = r * RESOURCE_FIELD_RES;
+          // Green = abundant, Red = scarce
+          if(val > 0.45){
+            const intensity = (val - 0.45) / 0.55;
+            ctx.fillStyle = 'rgba(63,185,80,' + (intensity * 0.06) + ')';
+          } else {
+            const intensity = (0.45 - val) / 0.45;
+            ctx.fillStyle = 'rgba(248,81,73,' + (intensity * 0.04) + ')';
+          }
+          ctx.fillRect(px, py, RESOURCE_FIELD_RES, RESOURCE_FIELD_RES);
+        }
+      }
+    }
 
     // Ambient glow in centre proportional to avg fitness
     if(organisms.length){
@@ -371,7 +1202,7 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       ctx.fillRect(0, 0, W, H);
     }
 
-    // Floating particles
+    // Background aura particles
     for(let p of auraParticles){
       p.x += p.vx; p.y += p.vy;
       if(p.x < 0) p.x = W;
@@ -385,6 +1216,24 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       ctx.fillStyle = isScarcity
         ? 'rgba(248,81,73,' + (a * 0.6) + ')'
         : 'rgba(88,166,255,' + a + ')';
+      ctx.fill();
+    }
+
+    // Environment resource particles — floating energy motes
+    updateEnvParticles(dt, W, H);
+    for(let p of envParticles){
+      const res = sampleResource(p.x, p.y);
+      const flicker = 0.5 + 0.5 * Math.sin(time * 3 + p.phase);
+      const alpha = p.life * flicker * 0.5 * (0.5 + res * 0.5);
+      if(alpha < 0.01) continue;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (0.6 + res * 0.4), 0, Math.PI*2);
+      if(isScarcity){
+        ctx.fillStyle = 'rgba(255,160,80,' + alpha + ')';
+      } else {
+        const g = Math.round(200 + res * 55);
+        ctx.fillStyle = 'rgba(80,' + g + ',120,' + alpha + ')';
+      }
       ctx.fill();
     }
   }
@@ -468,37 +1317,52 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       leaderRank[sorted[i].data.id] = i;
     }
 
+    // Physics simulation step
+    physicsStep(dt);
+
+    // Crowding analysis for visual density management
+    computeCrowding();
+
+    // Draw movement trails (before organisms so trails appear behind)
+    for(let i = 0; i < circles.length; i++){
+      const c = circles[i];
+      const mt = c.moveTrail;
+      if(!mt || mt.length < 2) continue;
+      const isDorm = c.data.state === 'dormant';
+      ctx.save();
+      ctx.lineCap = 'round';
+      for(let t = 1; t < mt.length; t++){
+        const frac = t / mt.length;
+        const alpha = frac * (isDorm ? 0.04 : 0.12);
+        const width = frac * c.r * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(mt[t-1].x, mt[t-1].y);
+        ctx.lineTo(mt[t].x, mt[t].y);
+        ctx.strokeStyle = 'rgba('+c.color.r+','+c.color.g+','+c.color.b+','+alpha+')';
+        ctx.lineWidth = Math.max(0.5, width);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     for(let i = 0; i < circles.length; i++){
       const c = circles[i];
       const o = c.data;
-
-      // 7. Micro-Interaction Physics — hover repulsion
-      if(hoveredIdx >= 0 && i !== hoveredIdx){
-        const hc = circles[hoveredIdx];
-        const dx = c.targetX - hc.x;
-        const dy = c.targetY - hc.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if(dist < HOVER_REPULSE_RADIUS && dist > 0){
-          const force = (1 - dist / HOVER_REPULSE_RADIUS) * HOVER_REPULSE_FORCE;
-          const nx = dx / dist, ny = dy / dist;
-          c.x += nx * force * dt * 2;
-          c.y += ny * force * dt * 2;
-        }
-      }
-
-      // Smooth interpolation
-      c.x = lerp(c.x, c.targetX, 0.08);
-      c.y = lerp(c.y, c.targetY, 0.08);
-      c.r = lerp(c.r, c.targetR, 0.1);
-
       const energy = o.energy || 0;
       const evoCount = o.evolution_count || 0;
       const opacity = Math.max(0.25, 1.0 - (o.stagnation || 0) * 0.6);
 
-      // 1. Energy-Based Pulse Animation
-      const energyFactor = 0.8 + energy * 2.2;
-      const pulse = 1.0 + PULSE_INTENSITY * Math.sin(time * energyFactor);
-      let drawR = Math.max(3, c.r * pulse);
+      // 1. Energy-Based Pulse Animation (uses visual renderR, not physics r)
+      const vs = c.visualState || 'exploring';
+      const isResting = vs === 'resting' || vs === 'sleeping';
+      // Resting organisms pulse calmer and breathe gently
+      const energyFactor = isResting ? 0.4 + energy * 0.6 : 0.8 + energy * 2.2;
+      const breathe = isResting ? REST_BREATHE_AMP * Math.sin(time * REST_BREATHE_SPEED * Math.PI * 2) : 0;
+      const pulse = 1.0 + (isResting ? PULSE_INTENSITY * 0.35 : PULSE_INTENSITY) * Math.sin(time * energyFactor) + breathe;
+      const baseVisR = c.renderR || c.r;
+      // Apply crowding shrink
+      const crowd = crowdingFactors[i] || {shrink:1, alpha:1};
+      let drawR = Math.max(MIN_RENDER_RADIUS, baseVisR * pulse * crowd.shrink);
 
       // 4. High-Energy Vibration — organisms buzz with excess energy
       let flickerOffsetX = 0, flickerOffsetY = 0, flickerAlpha = 1.0;
@@ -509,17 +1373,20 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
         flickerAlpha = 1.0;  // full brightness — they're thriving
       }
 
-      // Dormant organisms: grey desaturated, low alpha
+      // Dormant organisms: grey desaturated, low alpha, peaceful breathing
       let isDormant = o.state === 'dormant';
       if(isDormant){
         flickerAlpha = 0.35 + 0.05 * Math.sin(time * 0.8);
+      } else if(isResting){
+        // Resting: slightly dimmed, subtle breathing opacity
+        flickerAlpha = REST_DIM_FACTOR + 0.04 * Math.sin(time * REST_BREATHE_SPEED * Math.PI * 2 + (c.shimmerPhase || 0));
       }
 
       const cx = c.x + flickerOffsetX;
       const cy = c.y + flickerOffsetY;
 
       ctx.save();
-      ctx.globalAlpha = opacity * flickerAlpha;
+      ctx.globalAlpha = opacity * flickerAlpha * crowd.alpha;
 
       // 2. Awareness Halo System
       const awareness = o.awareness || 0;
@@ -601,42 +1468,8 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
         }
       }
 
-      // Main circle body — gradient fill for depth
-      const bodyGrad = ctx.createRadialGradient(
-        cx - drawR * 0.3, cy - drawR * 0.3, drawR * 0.1,
-        cx, cy, drawR
-      );
-      if(isDormant){
-        bodyGrad.addColorStop(0, 'rgba(120,120,120,0.6)');
-        bodyGrad.addColorStop(1, 'rgba(60,60,60,0.4)');
-      } else {
-        const br = Math.min(255, c.color.r + 60);
-        const bg = Math.min(255, c.color.g + 60);
-        const bb = Math.min(255, c.color.b + 60);
-        bodyGrad.addColorStop(0, 'rgb('+br+','+bg+','+bb+')');
-        bodyGrad.addColorStop(0.7, c.color.str);
-        const dr = Math.max(0, c.color.r - 40);
-        const dg = Math.max(0, c.color.g - 40);
-        const db = Math.max(0, c.color.b - 40);
-        bodyGrad.addColorStop(1, 'rgb('+dr+','+dg+','+db+')');
-      }
-      ctx.beginPath();
-      ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
-      ctx.fillStyle = bodyGrad;
-      ctx.fill();
-
-      // Inner highlight (specular)
-      const hlGrad = ctx.createRadialGradient(
-        cx - drawR * 0.25, cy - drawR * 0.25, 0,
-        cx, cy, drawR
-      );
-      hlGrad.addColorStop(0, 'rgba(255,255,255,0.18)');
-      hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.04)');
-      hlGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-      ctx.beginPath();
-      ctx.arc(cx, cy, drawR, 0, Math.PI * 2);
-      ctx.fillStyle = hlGrad;
-      ctx.fill();
+      // Main organism body — living marble renderer
+      drawMarble(ctx, c, cx, cy, drawR, isDormant, time);
 
       // Fitness glow border — brighter outline for fitter organisms
       if(!isDormant && (o.fitness||0) > 0.3){
@@ -790,7 +1623,7 @@ _VISUAL_DASHBOARD_HTML = r"""<!DOCTYPE html>
       fill.style.width = (poolFraction*100) + '%';
       fill.style.background = isScarcity ? '#f85149' : '#3fb950';
 
-      layoutGrid();
+      syncOrganisms();
     } catch(err){
       console.warn('poll error:', err);
     }
@@ -1252,6 +2085,7 @@ if (historyData.length > 0) {{
             traits = genome.get("traits", {})
             fitness = genome.get("fitness", 0.0)
             alive = m.get("alive", True)
+            lifecycle_state = m.get("lifecycle_state", "active")
             nickname = m.get("nickname")
 
             # Strategy from behavior profile
@@ -1307,6 +2141,7 @@ if (historyData.length > 0) {{
                 },
                 "strategy": strategy,
                 "alive": alive,
+                "lifecycle_state": lifecycle_state,
                 "nickname": nickname,
                 "awareness": round(awareness, 4),
                 "stagnation": round(stagnation, 4),

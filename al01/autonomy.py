@@ -930,6 +930,7 @@ class AutonomyEngine:
 
         # 5. Deterministic decision rules (priority order)
         #    v3.6: Recovery mode overrides — force STABILIZE to rebuild energy
+        #    v3.25: Founder recovery mode — block forced mutation, prefer safe recovery
         blend_threshold = (
             self._config.stagnation_window
             * self._config.stagnation_blend_multiplier
@@ -937,6 +938,10 @@ class AutonomyEngine:
         eff_threshold = self._effective_fitness_threshold
         if self._exploration_mode:
             eff_threshold *= 0.8  # lower bar during exploration
+
+        # v3.25: Founder recovery flags from env_modifiers
+        founder_recovery = env.get("founder_recovery_mode", False)
+        founder_mutate_blocked = env.get("founder_mutate_blocked", False)
 
         if self._recovery_mode:
             # v3.6: Recovery takes highest priority — force stabilize to
@@ -947,6 +952,36 @@ class AutonomyEngine:
                 f"{cfg.recovery_energy_threshold:.2f} for "
                 f"{self._low_energy_consecutive} cycles — forcing stabilize"
             )
+        elif founder_mutate_blocked and effective_fitness < eff_threshold:
+            # v3.25: Founder grace/cooldown active — use safe recovery
+            # instead of forced mutation. Alternate stabilize and adapt (low-risk).
+            if self._energy < 0.5:
+                decision = DECISION_STABILIZE
+                reason = (
+                    f"FOUNDER RECOVERY: mutation blocked (grace/cooldown), "
+                    f"energy {self._energy:.4f} < 0.5 — stabilizing"
+                )
+            else:
+                decision = DECISION_ADAPT
+                reason = (
+                    f"FOUNDER RECOVERY: mutation blocked (grace/cooldown), "
+                    f"energy {self._energy:.4f} >= 0.5 — safe adapt"
+                )
+        elif founder_recovery and effective_fitness < eff_threshold:
+            # v3.25: Founder in recovery but not blocked — allow mutation
+            # only every other cycle (alternating with stabilize)
+            if self._total_decisions % 2 == 0:
+                decision = DECISION_STABILIZE
+                reason = (
+                    f"FOUNDER RECOVERY: alternating stabilize "
+                    f"(fitness {effective_fitness:.4f} < {eff_threshold:.4f})"
+                )
+            else:
+                decision = DECISION_MUTATE
+                reason = (
+                    f"FOUNDER RECOVERY: allowing mutation "
+                    f"(fitness {effective_fitness:.4f} < {eff_threshold:.4f})"
+                )
         elif effective_fitness < eff_threshold:
             decision = DECISION_MUTATE
             reason = (
@@ -1043,6 +1078,8 @@ class AutonomyEngine:
             "exploration_mode": self._exploration_mode,
             "recovery_mode": self._recovery_mode,
             "low_energy_consecutive": self._low_energy_consecutive,
+            "founder_recovery_mode": founder_recovery,
+            "founder_mutate_blocked": founder_mutate_blocked,
             "drift_magnitude": round(drift_magnitude, 6),
             "env_trait_weights": {k: round(v, 4)
                                   for k, v in self._env_trait_weights.items()},

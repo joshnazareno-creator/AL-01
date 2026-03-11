@@ -288,13 +288,16 @@ class TestChildSurvivalGrace(unittest.TestCase):
             self.org.population.spawn_child(Genome(), 0)
 
     def test_child_dies_after_grace_cycles(self):
-        """Child should enter dormant state after exceeding survival grace cycles."""
+        """v3.28: Child dies permanently after exceeding survival grace cycles."""
+        self.org._population.hardcore_extinction_mode = True
         for _ in range(5):
             self.org.child_autonomy_cycle()
-        member = self.org.population.get(self.child_id)
-        # v3.15: fitness_floor now causes dormancy instead of death
-        self.assertEqual(member.get("state"), "dormant")
-        self.assertTrue(member.get("alive", False))
+        # v3.28: Child goes straight to graveyard (permanent death)
+        assert self.child_id not in self.org.population._members
+        assert self.child_id in self.org.population._graveyard
+        g = self.org.population._graveyard[self.child_id]
+        self.assertEqual(g.get("state"), "dead")
+        self.assertFalse(g.get("alive", True))
 
 
 # ==================================================================

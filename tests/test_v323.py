@@ -59,13 +59,13 @@ def _make_organism(tmp_path, env_config=None, autonomy_config=None):
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestConservationMode:
-    """Organisms at minimum energy enter conservation instead of dying."""
+    """Organisms at minimum energy enter sleeping state (was conservation mode)."""
 
     def test_conservation_threshold_constant(self):
         assert CONSERVATION_ENERGY_THRESHOLD == pytest.approx(0.10)
 
     def test_conservation_mode_activates(self, tmp_path):
-        """Child at low energy enters conservation mode."""
+        """Child at low energy enters sleeping state."""
         org = _make_organism(tmp_path)
         # Spawn a child
         child = org._population.spawn_child(org._genome, 1)
@@ -73,30 +73,34 @@ class TestConservationMode:
         cid = child["id"]
         # Set child energy very low (at conservation threshold)
         org._population.update_member(cid, {"energy": 0.09})
-        # Run child autonomy — should enter conservation, NOT die
+        # Run child autonomy — should enter sleeping, NOT die
         results = org.child_autonomy_cycle()
         # Find the result for this child
         child_results = [r for r in results if r.get("organism_id") == cid]
         if child_results:
             assert child_results[0]["decision"] != "death"
-        # Check conservation mode tracking
+        # v3.26: Check sleeping lifecycle state instead of conservation mode dict
         member = org._population.get(cid)
         if member and member.get("alive", True):
-            assert org._conservation_mode.get(cid, False) is True
+            from al01.population import LifecycleState
+            assert member.get("lifecycle_state") == LifecycleState.SLEEPING
 
     def test_conservation_mode_exits(self, tmp_path):
-        """Conservation mode exits when energy recovers."""
+        """Sleeping state exits when energy recovers."""
         org = _make_organism(tmp_path)
         child = org._population.spawn_child(org._genome, 1)
         assert child is not None
         cid = child["id"]
-        # Put into conservation
-        org._conservation_mode[cid] = True
+        # Put into sleeping state via population
+        org._population.enter_sleeping(cid, cause="low_energy")
         # Set energy above exit threshold (2 × conservation threshold)
         org._population.update_member(cid, {"energy": 0.25})
         org.child_autonomy_cycle()
-        # Should have exited conservation
-        assert org._conservation_mode.get(cid, False) is False
+        # Should have exited sleeping state
+        from al01.population import LifecycleState
+        member = org._population.get(cid)
+        assert member is not None
+        assert member.get("lifecycle_state") != LifecycleState.SLEEPING
 
     def test_conservation_reduces_metabolism(self):
         """Conservation metabolic fraction is less than 1.0."""
@@ -105,14 +109,25 @@ class TestConservationMode:
         assert cfg.conservation_metabolic_fraction > 0.0
 
     def test_death_clears_conservation(self, tmp_path):
-        """_handle_death clears conservation mode tracking."""
+        """v3.28: _handle_death kills child permanently (straight to graveyard).
+
+        Sleeping state is irrelevant — child goes straight to graveyard.
+        """
         org = _make_organism(tmp_path)
-        child = org._population.spawn_child(org._genome, 1)
-        assert child is not None
-        cid = child["id"]
-        org._conservation_mode[cid] = True
+        org._population.hardcore_extinction_mode = True
+        # Spawn enough children to avoid extinction recovery threshold (< 5)
+        for _ in range(5):
+            org._population.spawn_child(org._genome, 1)
+        children = [mid for mid in org._population.member_ids if mid != "AL-01"]
+        cid = children[0]
+        org._population.enter_sleeping(cid, cause="low_energy")
+        # v3.28: Death kills child permanently — graveyard
         org._handle_death(cid, "test_death")
-        assert cid not in org._conservation_mode
+        from al01.population import LifecycleState
+        # Child is now in graveyard
+        assert cid in org._population._graveyard
+        g = org._population._graveyard[cid]
+        assert g.get("lifecycle_state") == LifecycleState.DEAD
 
 
 # ═══════════════════════════════════════════════════════════════════════

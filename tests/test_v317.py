@@ -93,11 +93,14 @@ class TestDeadParentCannotSpawn:
             child_ids = [mid for mid in pop.member_ids if mid != "AL-01"]
             target = child_ids[0]
 
-            # Kill the child
+            # Kill the child — v3.26: dead organisms move to graveyard
             pop.remove_member(target, cause="test_kill")
             rec = pop.get(target)
             assert rec is not None
             assert rec["alive"] is False
+            # v3.26: Dead organism should be in graveyard, not _members
+            assert target not in pop._members
+            assert target in pop._graveyard
 
             # Attempt spawn from dead parent — must fail
             pop.set_tick(999)

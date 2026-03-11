@@ -18,7 +18,7 @@ import tempfile
 import pytest
 
 from al01.environment import Environment, EnvironmentConfig
-from al01.population import Population, ABSOLUTE_POPULATION_CAP, BIRTH_COOLDOWN_CYCLES
+from al01.population import Population, ABSOLUTE_POPULATION_CAP, BIRTH_COOLDOWN_CYCLES, LifecycleState
 from al01.genome import Genome
 from al01.organism import Organism
 from al01.memory_manager import MemoryManager
@@ -407,8 +407,8 @@ class TestExtinctionRecovery:
         finally:
             _cleanup_handlers()
 
-    def test_recovery_wakes_dormant(self):
-        """Extinction recovery also wakes dormant organisms."""
+    def test_recovery_does_not_wake_dormant(self):
+        """v3.28: Extinction recovery no longer wakes dormant organisms."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -423,7 +423,8 @@ class TestExtinctionRecovery:
 
             result = org.check_extinction_reseed()
             assert result is not None
-            assert len(result["dormant_woken"]) == 2
+            # v3.28: dormant organisms are no longer woken during extinction recovery
+            assert len(result["dormant_woken"]) == 0
         finally:
             _cleanup_handlers()
 
@@ -484,7 +485,8 @@ class TestTopFitnessMembers:
             assert len(top) == 1
             assert top[0]["id"] == child_ids[0]
 
-    def test_top_fitness_includes_recently_dead(self):
+    def test_top_fitness_excludes_dead(self):
+        """v3.26: Dead organisms are in the graveyard — never in top_fitness_members."""
         with tempfile.TemporaryDirectory() as tmp:
             pop = _pop(tmp, max_pop=60)
             pop.hardcore_extinction_mode = True
@@ -498,7 +500,7 @@ class TestTopFitnessMembers:
 
             top = pop.top_fitness_members(n=5)
             ids_in_top = [t["id"] for t in top]
-            assert child_ids[0] in ids_in_top
+            assert child_ids[0] not in ids_in_top
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -506,8 +508,8 @@ class TestTopFitnessMembers:
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestWakeDormantCycle:
-    def test_wake_when_pool_healthy(self):
-        """Dormant organisms wake when environment is no longer in scarcity."""
+    def test_wake_skips_non_al01_dormant(self):
+        """v3.28: wake_dormant_cycle skips non-AL-01 dormant organisms."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -520,8 +522,9 @@ class TestWakeDormantCycle:
             # Pool is healthy (default 1000/1000)
             assert not org._environment.is_scarcity_pressure
             woke = org.wake_dormant_cycle()
-            assert len(woke) == 1
-            assert org._population.dormant_count == 0
+            # v3.28: Children are skipped — only AL-01 can be woken
+            assert len(woke) == 0
+            assert org._population.dormant_count == 1
         finally:
             _cleanup_handlers()
 
@@ -545,8 +548,8 @@ class TestWakeDormantCycle:
         finally:
             _cleanup_handlers()
 
-    def test_wake_during_critical_pop_even_in_scarcity(self):
-        """If pop < 5, dormant organisms wake even during scarcity."""
+    def test_wake_skips_children_even_when_critical(self):
+        """v3.28: Dormant children are not woken even when pop is critical."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -562,8 +565,9 @@ class TestWakeDormantCycle:
             assert org._environment.is_scarcity_pressure
 
             woke = org.wake_dormant_cycle()
-            assert len(woke) == 2  # both wake because pop is critical
-            assert org._population.dormant_count == 0
+            # v3.28: Children are never woken — only AL-01 can wake
+            assert len(woke) == 0
+            assert org._population.dormant_count == 2
         finally:
             _cleanup_handlers()
 
@@ -573,26 +577,28 @@ class TestWakeDormantCycle:
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestHandleDeathDormant:
-    def test_fitness_floor_causes_dormancy(self):
-        """_handle_death with fitness_floor puts child into dormant, not dead."""
+    def test_fitness_floor_causes_permanent_death(self):
+        """v3.28: _handle_death with fitness_floor kills child permanently."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
             org.boot()
+            org._population.hardcore_extinction_mode = True
             _spawn_children(org._population, 5)
             child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
             target = child_ids[0]
 
             org._handle_death(target, "fitness_floor")
-            member = org._population.get(target)
-            assert member is not None
-            assert member["alive"] is True
-            assert member["state"] == "dormant"
+            # v3.28: Child goes straight to graveyard
+            assert target not in org._population._members
+            assert target in org._population._graveyard
+            g = org._population._graveyard[target]
+            assert g["alive"] is False
         finally:
             _cleanup_handlers()
 
-    def test_energy_depleted_causes_dormancy_v316(self):
-        """v3.16: _handle_death with energy_depleted now puts child into dormant."""
+    def test_energy_depleted_causes_permanent_death(self):
+        """v3.28: _handle_death with energy_depleted kills child permanently."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -603,16 +609,14 @@ class TestHandleDeathDormant:
             target = child_ids[0]
 
             org._handle_death(target, "energy_depleted")
-            member = org._population.get(target)
-            assert member is not None
-            # v3.16: energy_depleted now triggers dormancy (not hard kill)
-            assert member["alive"] is True
-            assert member["state"] == "dormant"
+            # v3.28: Child goes straight to graveyard
+            assert target not in org._population._members
+            assert target in org._population._graveyard
         finally:
             _cleanup_handlers()
 
-    def test_founder_does_not_go_dormant(self):
-        """AL-01 (founder) is never put into dormant state."""
+    def test_founder_protected_from_death(self):
+        """v3.28: AL-01 gets founder protection — rescue instead of death."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -622,8 +626,10 @@ class TestHandleDeathDormant:
             org._handle_death("AL-01", "fitness_floor")
             member = org._population.get("AL-01")
             assert member is not None
-            # Founder either died or was blocked by floor, but NOT dormant
-            assert member.get("state") != "dormant"
+            # v3.28: Founder is rescued, not dormant or dead
+            assert member.get("lifecycle_state") != LifecycleState.DEAD
+            assert member.get("alive") is True
+            assert org._founder_revival_count >= 1
         finally:
             _cleanup_handlers()
 

@@ -19,7 +19,7 @@ import tempfile
 import pytest
 
 from al01.environment import Environment, EnvironmentConfig
-from al01.population import Population, ABSOLUTE_POPULATION_CAP, BIRTH_COOLDOWN_CYCLES
+from al01.population import Population, ABSOLUTE_POPULATION_CAP, BIRTH_COOLDOWN_CYCLES, LifecycleState
 from al01.genome import Genome
 from al01.organism import Organism
 from al01.memory_manager import MemoryManager
@@ -81,47 +81,10 @@ def _cleanup_handlers():
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestDormancyExpansion:
-    """v3.16: _handle_death puts ANY non-founder into dormant state,
-    regardless of death cause (fitness_floor, energy_depleted, etc.)."""
+    """v3.28: _handle_death kills children permanently (no dormancy)."""
 
-    def test_energy_depleted_causes_dormancy(self):
-        """energy_depleted now triggers dormancy instead of hard kill."""
-        tmp = tempfile.mkdtemp()
-        try:
-            org = _make_organism(tmp)
-            org.boot()
-            _spawn_children(org._population, 5)
-            child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
-            target = child_ids[0]
-
-            org._handle_death(target, "energy_depleted")
-            member = org._population.get(target)
-            assert member is not None
-            assert member["alive"] is True
-            assert member["state"] == "dormant"
-        finally:
-            _cleanup_handlers()
-
-    def test_fitness_floor_still_causes_dormancy(self):
-        """fitness_floor continues to cause dormancy (as in v3.15)."""
-        tmp = tempfile.mkdtemp()
-        try:
-            org = _make_organism(tmp)
-            org.boot()
-            _spawn_children(org._population, 5)
-            child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
-            target = child_ids[0]
-
-            org._handle_death(target, "fitness_floor")
-            member = org._population.get(target)
-            assert member is not None
-            assert member["alive"] is True
-            assert member["state"] == "dormant"
-        finally:
-            _cleanup_handlers()
-
-    def test_already_dormant_organism_dies_on_second_death(self):
-        """If an already-dormant organism fails again, it truly dies."""
+    def test_energy_depleted_causes_permanent_death(self):
+        """v3.28: energy_depleted kills child permanently."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -131,22 +94,55 @@ class TestDormancyExpansion:
             child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
             target = child_ids[0]
 
-            # First death → dormant
             org._handle_death(target, "energy_depleted")
-            member = org._population.get(target)
-            assert member["state"] == "dormant"
-
-            # Second death → real death
-            org._handle_death(target, "energy_depleted")
-            member = org._population.get(target)
-            assert member is not None
-            assert member["alive"] is False
-            assert member["state"] == "dead"
+            # v3.28: Child goes straight to graveyard
+            assert target not in org._population._members
+            assert target in org._population._graveyard
+            g = org._population._graveyard[target]
+            assert g["alive"] is False
+            assert g["state"] == "dead"
         finally:
             _cleanup_handlers()
 
-    def test_founder_never_goes_dormant(self):
-        """AL-01 founder is never put into dormant state."""
+    def test_fitness_floor_causes_permanent_death(self):
+        """v3.28: fitness_floor kills child permanently."""
+        tmp = tempfile.mkdtemp()
+        try:
+            org = _make_organism(tmp)
+            org.boot()
+            org._population.hardcore_extinction_mode = True
+            _spawn_children(org._population, 5)
+            child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
+            target = child_ids[0]
+
+            org._handle_death(target, "fitness_floor")
+            assert target not in org._population._members
+            assert target in org._population._graveyard
+        finally:
+            _cleanup_handlers()
+
+    def test_child_dies_immediately_no_two_step(self):
+        """v3.28: Child dies in one step, no dormancy-first."""
+        tmp = tempfile.mkdtemp()
+        try:
+            org = _make_organism(tmp)
+            org.boot()
+            org._population.hardcore_extinction_mode = True
+            _spawn_children(org._population, 5)
+            child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
+            target = child_ids[0]
+
+            # Single death call → graveyard
+            org._handle_death(target, "energy_depleted")
+            g = org._population._graveyard.get(target)
+            assert g is not None
+            assert g["alive"] is False
+            assert g["state"] == "dead"
+        finally:
+            _cleanup_handlers()
+
+    def test_founder_protected_from_death(self):
+        """v3.28: AL-01 gets founder protection — rescue instead of death."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
@@ -156,23 +152,27 @@ class TestDormancyExpansion:
             org._handle_death("AL-01", "energy_depleted")
             member = org._population.get("AL-01")
             assert member is not None
-            assert member.get("state") != "dormant"
+            # v3.28: Founder is rescued, stays alive
+            assert member.get("lifecycle_state") != LifecycleState.DEAD
+            assert member.get("alive") is True
         finally:
             _cleanup_handlers()
 
-    def test_dormant_organism_excluded_from_size(self):
-        """Dormant organisms (from energy death) are excluded from .size."""
+    def test_dead_organism_excluded_from_size(self):
+        """v3.28: Dead organisms (from energy death) are excluded from .size."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
             org.boot()
+            org._population.hardcore_extinction_mode = True
             _spawn_children(org._population, 5)
             original_size = org._population.size  # 6
             child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
 
             org._handle_death(child_ids[0], "energy_depleted")
             assert org._population.size == original_size - 1
-            assert org._population.dormant_count == 1
+            # v3.28: Child goes to graveyard, not dormant
+            assert org._population.dormant_count == 0
         finally:
             _cleanup_handlers()
 
@@ -225,7 +225,8 @@ class TestConfigurableWakeThreshold:
             # Pool = 1000/1000 = 100% > 50% threshold
             assert org._environment.pool_fraction >= 0.50
             woke = org.wake_dormant_cycle()
-            assert len(woke) == 1
+            # v3.28: wake_dormant_cycle skips non-AL-01 organisms
+            assert len(woke) == 0
         finally:
             _cleanup_handlers()
 
@@ -608,26 +609,24 @@ class TestIntegration:
     """Cross-feature integration tests."""
 
     def test_energy_death_dormancy_then_wake(self):
-        """Full cycle: energy death → dormant → pool recovers → wake."""
+        """v3.28: energy death kills child permanently (no dormancy cycle)."""
         tmp = tempfile.mkdtemp()
         try:
             org = _make_organism(tmp)
             org.boot()
+            org._population.hardcore_extinction_mode = True
             _spawn_children(org._population, 5)
             child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
             target = child_ids[0]
 
-            # Step 1: energy death → dormant
+            # Step 1: energy death → graveyard (permanent)
             org._handle_death(target, "energy_depleted")
-            assert org._population.get(target)["state"] == "dormant"
-            assert org._population.dormant_count == 1
+            assert target not in org._population._members
+            assert target in org._population._graveyard
 
-            # Step 2: Pool is healthy → wake
-            assert org._environment.pool_fraction >= 0.50
-            woke = org.wake_dormant_cycle()
-            assert len(woke) == 1
-            assert org._population.dormant_count == 0
-            assert org._population.get(target)["state"] == "idle"
+            # Step 2: Child cannot be woken — it's dead
+            result = org._population.wake_dormant(target, energy_boost=0.3)
+            assert result is None
         finally:
             _cleanup_handlers()
 
@@ -742,32 +741,25 @@ class TestIntegration:
         try:
             org = _make_organism(tmp)
             org.boot()
+            org._population.hardcore_extinction_mode = True
             # Spawn enough children so pop stays above extinction threshold (5)
             _spawn_children(org._population, 6)  # 7 total
 
             child_ids = [mid for mid in org._population.member_ids if mid != "AL-01"]
             target = child_ids[0]
 
-            # Phase 1: Energy depletion → dormancy
+            # Phase 1: Energy depletion → permanent death (v3.28)
             org._handle_death(target, "energy_depleted")
-            member = org._population.get(target)
-            assert member["state"] == "dormant"
-            assert org._population.dormant_count == 1
-            pop_after_dormant = org._population.size  # 6
+            assert target not in org._population._members
+            assert target in org._population._graveyard
+            pop_after_death = org._population.size  # 6
 
-            # Phase 2: Pool drops below wake threshold → stays dormant
-            org._environment._resource_pool = 400.0  # 40% < 50% threshold
-            woke = org.wake_dormant_cycle()
-            assert len(woke) == 0
-            assert org._population.dormant_count == 1
+            # Phase 2: Dead child cannot be woken
+            result = org._population.wake_dormant(target, energy_boost=0.3)
+            assert result is None
 
-            # Phase 3: Pool recovers → wake
-            org._environment._resource_pool = 600.0  # 60% > 50% threshold
-            woke = org.wake_dormant_cycle()
-            assert len(woke) == 1
-            assert org._population.dormant_count == 0
-            assert org._population.get(target)["state"] == "idle"
-            assert org._population.size == pop_after_dormant + 1
+            # Phase 3: Population size stays the same (no revival)
+            assert org._population.size == pop_after_death
 
         finally:
             _cleanup_handlers()

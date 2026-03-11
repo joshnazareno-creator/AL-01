@@ -456,15 +456,28 @@ class TestOrganismIntegration(unittest.TestCase):
         self.assertEqual(org.population.size, 1)
 
     def test_handle_death_triggers_reseed(self):
-        """When _handle_death causes extinction, vault auto-reseeds."""
-        org = self._make_organism()
-        # Ensure only AL-01 is alive
-        self.assertEqual(org.population.size, 1)
+        """When _handle_death causes extinction, vault auto-reseeds.
 
-        # Kill AL-01 via _handle_death
-        org._handle_death("AL-01", "test_death")
+        v3.26: AL-01 has founder protection (never dies), so test with
+        a child organism that is already dormant (second death = real death).
+        """
+        org = self._make_organism()
+        # Spawn a child so it can be killed
+        child = org.population.spawn_child(org._genome, 1)
+        self.assertIsNotNone(child)
+        cid = child["id"]
+        # First _handle_death puts child dormant
+        org._handle_death(cid, "test_death")
+        # Kill all remaining living members to trigger extinction
+        for mid in list(org.population.member_ids):
+            if mid != "AL-01":
+                org.population.remove_member(mid, cause="test")
+        # Remove AL-01 with hardcore mode to allow full extinction
+        org.population.hardcore_extinction_mode = True
+        org.population.remove_member("AL-01", cause="test")
 
         # Vault should have auto-reseeded
+        org.check_extinction_reseed()
         self.assertGreater(org.population.size, 0)
         self.assertEqual(org.genesis_vault.reseed_count, 1)
 

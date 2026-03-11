@@ -43,7 +43,7 @@ from al01.genome import Genome
 from al01.life_log import LifeLog
 from al01.memory_manager import MemoryManager
 from al01.policy import PolicyManager
-from al01.population import Population
+from al01.population import LifecycleState, Population
 from al01.genesis_vault import GenesisVault
 from al01.gpt_bridge import GPTBridge, GPTBridgeConfig
 from al01.snapshot_manager import SnapshotConfig, SnapshotManager
@@ -55,6 +55,14 @@ VERSION = "3.9"
 FOUNDER_MUTATION_CAP: float = 0.08      # AL-01 mutation rate never exceeds this
 FOUNDER_ENERGY_FLOOR: float = 0.25      # AL-01 energy never drops below this
 FOUNDER_FITNESS_FLOOR: float = 0.15     # AL-01 won't die unless below this
+
+# ── v3.25: Founder revival survival fix ───────────────────────────────
+FOUNDER_REVIVAL_ENERGY: float = 0.60           # energy restored on revival (was 0.5)
+FOUNDER_REVIVAL_FITNESS_FLOOR: float = 0.20    # minimum fitness set on revival
+FOUNDER_REVIVAL_GRACE_CYCLES: int = 30         # grace window: no forced mutation
+FOUNDER_MAX_CONSECUTIVE_FORCED_MUTATE: int = 3 # cap forced mutations before cooldown
+FOUNDER_MUTATE_COOLDOWN_CYCLES: int = 5        # stabilize cycles after hitting cap
+FOUNDER_RECOVERY_SCARCITY_DAMPENING: float = 0.4  # scarcity multiplier softened to 40%
 
 # ── v3.23: Stabilization constants ───────────────────────────────────
 CONSERVATION_ENERGY_THRESHOLD: float = 0.10   # 10 % of max — enter conservation
@@ -514,6 +522,14 @@ class Organism:
 
         # v3.23: Conservation mode tracking — organisms at minimum energy
         self._conservation_mode: Dict[str, bool] = {}
+
+        # v3.25: Founder revival survival tracking
+        self._founder_revival_count: int = 0
+        self._founder_revival_grace_remaining: int = 0
+        self._founder_forced_mutate_streak: int = 0
+        self._founder_mutate_cooldown: int = 0
+        self._founder_recovery_mode: bool = False
+        self._founder_cycles_since_revival: int = 0
 
         # v3.4: Default population cap (overridden by ExperimentConfig when active)
         self._default_max_population: int = 60
@@ -1156,24 +1172,13 @@ class Organism:
         """
         self._global_cycle += 1
 
-        # v3.4: If AL-01 is dead in population, revive it with survival energy
-        al01_record = self._population.get("AL-01")
-        if al01_record and not al01_record.get("alive", True):
-            self._logger.warning(
-                "[REVIVE] AL-01 was dead — reviving with survival energy"
-            )
-            self._population.update_member("AL-01", {
-                "alive": True,
-                "death_info": None,
-                "state": "idle",
-                "energy": 0.5,
-            })
-            # v3.6: Reset survival grace counter so we get a fresh grace period
-            self._below_fitness_cycles["AL-01"] = 0
-            # Also reset the autonomy engine energy so the next decide()
-            # doesn't immediately kill it again
-            if self._autonomy.energy <= 0.0:
-                self._autonomy._energy = 0.5
+        # v3.25: Tick founder recovery counters
+        if self._founder_revival_grace_remaining > 0:
+            self._founder_revival_grace_remaining -= 1
+        if self._founder_mutate_cooldown > 0:
+            self._founder_mutate_cooldown -= 1
+        if self._founder_recovery_mode:
+            self._founder_cycles_since_revival += 1
 
         with self._state_lock:
             # Use environment-weighted fitness instead of simple mean
@@ -1202,6 +1207,15 @@ class Organism:
         grant_ratio = granted / metabolic_cost if metabolic_cost > 0 else 1.0
         env_modifiers["pool_grant_ratio"] = grant_ratio
 
+        # v3.25: Pass founder recovery state to autonomy decide
+        founder_in_grace = self._founder_revival_grace_remaining > 0
+        founder_mutate_blocked = (
+            founder_in_grace
+            or self._founder_mutate_cooldown > 0
+        )
+        env_modifiers["founder_recovery_mode"] = self._founder_recovery_mode
+        env_modifiers["founder_mutate_blocked"] = founder_mutate_blocked
+
         energy_before = self._autonomy.energy
 
         record = self._autonomy.decide(
@@ -1213,10 +1227,30 @@ class Organism:
         computed_awareness = record["awareness"]
         energy = record.get("energy", 1.0)
 
-        # v3.8: Founder protection — enforce energy floor for AL-01
-        if energy < FOUNDER_ENERGY_FLOOR:
-            energy = FOUNDER_ENERGY_FLOOR
-            self._autonomy._energy = FOUNDER_ENERGY_FLOOR
+        # v3.25: Track forced mutation streak + cooldown
+        if decision == "mutate":
+            self._founder_forced_mutate_streak += 1
+            if self._founder_forced_mutate_streak >= FOUNDER_MAX_CONSECUTIVE_FORCED_MUTATE:
+                self._founder_mutate_cooldown = FOUNDER_MUTATE_COOLDOWN_CYCLES
+                self._logger.info(
+                    "[FOUNDER-RECOVERY] Forced mutation cap reached (%d) — "
+                    "entering %d-cycle cooldown",
+                    self._founder_forced_mutate_streak,
+                    FOUNDER_MUTATE_COOLDOWN_CYCLES,
+                )
+                self._founder_forced_mutate_streak = 0
+        else:
+            self._founder_forced_mutate_streak = 0
+
+        # v3.25: Exit founder recovery mode when fitness is healthy
+        if self._founder_recovery_mode and fitness >= FOUNDER_REVIVAL_FITNESS_FLOOR * 1.5:
+            self._logger.info(
+                "[FOUNDER-RECOVERY] Exiting recovery mode — fitness %.4f "
+                "above threshold %.4f (survived %d cycles after revival)",
+                fitness, FOUNDER_REVIVAL_FITNESS_FLOOR * 1.5,
+                self._founder_cycles_since_revival,
+            )
+            self._founder_recovery_mode = False
 
         # v3.23: Adaptability recovery — nudge adaptability upward when dangerously low
         adaptability_val = self._genome.effective_traits.get("adaptability", 0.5)
@@ -1284,6 +1318,7 @@ class Organism:
         record["fitness_components"] = self._genome.fitness_components
         # v3.3: Survival grace cycles — track consecutive cycles below fitness floor
         # v3.8: Use FOUNDER_FITNESS_FLOOR for the parent (much lower than children)
+        # v3.25: Extended grace during founder recovery mode
         survival_threshold = 0.2
         founder_threshold = FOUNDER_FITNESS_FLOOR
         survival_grace = 20
@@ -1292,13 +1327,23 @@ class Organism:
             survival_grace = self._experiment.config.survival_grace_cycles
         # v3.13: Scarcity pressure reduces survival grace
         survival_grace = self._environment.effective_survival_grace(survival_grace)
-        effective_threshold = founder_threshold  # AL-01 gets founder protection
+        effective_threshold = founder_threshold
         if fitness < effective_threshold:
             self._below_fitness_cycles["AL-01"] = self._below_fitness_cycles.get("AL-01", 0) + 1
             if self._below_fitness_cycles["AL-01"] >= survival_grace:
+                # v3.25: Log detailed death context for founder spiral analysis
                 self._logger.warning(
-                    "[SURVIVAL] AL-01 below fitness floor %.4f for %d cycles — triggering death",
-                    survival_threshold, self._below_fitness_cycles["AL-01"],
+                    "[FOUNDER-DEATH] AL-01 died: cause=fitness_floor "
+                    "fitness=%.4f energy=%.4f forced_mutate_streak=%d "
+                    "scarcity_mult=%.2f cycles_since_revival=%d "
+                    "revival_count=%d recovery_mode=%s grace_remaining=%d",
+                    fitness, energy,
+                    self._founder_forced_mutate_streak,
+                    env_modifiers.get("mutation_cost_multiplier", 1.0),
+                    self._founder_cycles_since_revival,
+                    self._founder_revival_count,
+                    self._founder_recovery_mode,
+                    self._founder_revival_grace_remaining,
                 )
                 self._handle_death("AL-01", "fitness_floor")
                 record["organism_died"] = True
@@ -1307,8 +1352,21 @@ class Organism:
         else:
             self._below_fitness_cycles["AL-01"] = 0
 
-        # Check for death
+        # Check for death (energy depletion)
         if record.get("organism_died"):
+            # v3.25: Log detailed death context
+            self._logger.warning(
+                "[FOUNDER-DEATH] AL-01 died: cause=energy_depleted "
+                "fitness=%.4f energy=%.4f forced_mutate_streak=%d "
+                "scarcity_mult=%.2f cycles_since_revival=%d "
+                "revival_count=%d recovery_mode=%s",
+                fitness, energy,
+                self._founder_forced_mutate_streak,
+                env_modifiers.get("mutation_cost_multiplier", 1.0),
+                self._founder_cycles_since_revival,
+                self._founder_revival_count,
+                self._founder_recovery_mode,
+            )
             self._handle_death("AL-01", "energy_depleted")
             return record
 
@@ -1523,7 +1581,7 @@ class Organism:
 
         for oid in self._population.member_ids:
             member = self._population.get(oid)
-            if not member or not member.get("alive", True):
+            if not member or member.get("lifecycle_state") == LifecycleState.DEAD:
                 continue
             genome_data = member.get("genome", {})
             if not genome_data:
@@ -1542,7 +1600,11 @@ class Organism:
 
             # Also update the parent's live genome reference
             if oid == "AL-01":
+                # Preserve fitness_components from the current genome
+                old_fc = self._genome._fitness_components
                 self._genome = child_genome
+                if old_fc is not None:
+                    self._genome._fitness_components = dict(old_fc)
                 with self._state_lock:
                     self._state["genome"] = self._genome.to_dict()
 
@@ -1766,11 +1828,11 @@ class Organism:
                 continue  # parent is handled by autonomy_cycle()
 
             member = self._population.get(oid)
-            if not member or not member.get("alive", True):
+            if not member or member.get("lifecycle_state") == LifecycleState.DEAD:
                 continue
 
             # v3.16: Skip dormant organisms — they consume 0 metabolic cost
-            if member.get("state") == "dormant":
+            if member.get("lifecycle_state") == LifecycleState.DORMANT:
                 continue
 
             genome_data = member.get("genome", {})
@@ -1842,8 +1904,8 @@ class Organism:
             energy -= cfg.energy_decay_per_cycle * eff_scale
             cost_mult = env_modifiers.get("mutation_cost_multiplier", 1.0)
 
-            # v3.23: Conservation mode — if in conservation, use reduced metabolism
-            in_conservation = self._conservation_mode.get(oid, False)
+            # v3.26: Sleeping state (was conservation mode) — reduced metabolism
+            in_conservation = member.get("lifecycle_state") == LifecycleState.SLEEPING
             if in_conservation:
                 conservation_frac = self._environment.config.conservation_metabolic_fraction
                 metabolic_cost = self._environment.effective_metabolic_cost() * conservation_frac
@@ -1972,24 +2034,23 @@ class Organism:
             # conservation instead of dying immediately
             energy = max(cfg.energy_min, min(1.0, energy))
             if energy <= CONSERVATION_ENERGY_THRESHOLD and not in_conservation:
-                # Enter conservation mode — reduced metabolism, no reproduction
-                self._conservation_mode[oid] = True
+                # Enter sleeping state — reduced metabolism, no reproduction
+                self._population.enter_sleeping(oid, cause="low_energy")
                 self._logger.info(
-                    "[CONSERVATION] %s entering conservation mode (energy=%.4f)",
+                    "[SLEEPING] %s entering sleeping state (energy=%.4f)",
                     oid, energy,
                 )
             elif energy > CONSERVATION_ENERGY_THRESHOLD * 2 and in_conservation:
-                # Exit conservation mode once energy recovers above 2 × threshold
-                self._conservation_mode[oid] = False
+                # Exit sleeping state once energy recovers above 2 × threshold
+                self._population.wake_sleeping(oid)
                 self._logger.info(
-                    "[CONSERVATION] %s exiting conservation mode (energy=%.4f)",
+                    "[SLEEPING] %s waking from sleep (energy=%.4f)",
                     oid, energy,
                 )
             if energy <= 0.0:
                 self._logger.warning(
                     "[CHILD-ENERGY] %s energy depleted — death", oid,
                 )
-                self._conservation_mode.pop(oid, None)
                 self._handle_death(oid, "energy_depleted")
                 results.append({
                     "organism_id": oid, "decision": "death",
@@ -2050,50 +2111,52 @@ class Organism:
         return analysis
 
     def _handle_death(self, organism_id: str, cause: str) -> None:
-        """Process organism death: enter dormant state or remove from population.
+        """Process organism death: children die permanently, AL-01 gets founder protection.
 
-        v3.16 Dormancy-first: ALL death causes for non-founder organisms
-        trigger dormant state instead of hard death.  Dormant organisms
-        consume zero metabolic cost and can reactivate when conditions
-        improve.  Only organisms that are *already dormant* and fail
-        again are truly removed.
-        The AL-01 founder never goes dormant — it uses the floor guard.
+        v3.28: Children skip dormancy entirely and go straight to graveyard.
+        Death is terminal and permanent for all children — no revival path.
+        AL-01 (founder) receives emergency energy injection instead of dying,
+        preserving the original lineage.
         """
-        # v3.23: Clear conservation mode on death
-        self._conservation_mode.pop(organism_id, None)
-
         member = self._population.get(organism_id)
-        # v3.16: Any death cause triggers dormancy for non-founder,
-        # non-already-dormant organisms
-        is_dormant_candidate = (
-            organism_id != "AL-01"
-            and member is not None
-            and member.get("state") != "dormant"
-        )
 
-        if is_dormant_candidate:
-            dormant_info = self._population.enter_dormant(organism_id, cause)
-            if dormant_info:
-                self._behavior_analyzer.remove_organism(organism_id)
-                self._life_log.append_event(
-                    event_type="organism_dormant",
-                    payload={
-                        "organism_id": organism_id,
-                        "cause": cause,
-                        "cycle": self._global_cycle,
-                        **dormant_info,
-                    },
-                )
-                self._logger.warning(
-                    "[DORMANT] %s entered dormant state: %s at cycle %d",
-                    organism_id, cause, self._global_cycle,
-                )
-                # v3.15: Check extinction recovery after dormancy
-                self.check_extinction_reseed()
-                return
+        # ── v3.28: AL-01 founder protection ─────────────────────────
+        if organism_id == "AL-01" and member is not None:
+            # Inject emergency energy instead of killing AL-01
+            self._founder_revival_count += 1
+            self._founder_recovery_mode = True
+            self._founder_revival_grace_remaining = FOUNDER_REVIVAL_GRACE_CYCLES
+            self._founder_cycles_since_revival = 0
+            self._founder_forced_mutate_streak = 0
 
-        # Full death path — energy_depleted or founder or already dormant
-        death_info = self._population.remove_member(organism_id, cause)
+            new_energy = FOUNDER_REVIVAL_ENERGY
+            self._population.update_energy("AL-01", new_energy)
+            self._autonomy._energy = new_energy
+
+            self._logger.warning(
+                "[FOUNDER-RESCUE] AL-01 rescued from death: cause=%s "
+                "revival_count=%d energy=%.4f grace_cycles=%d cycle=%d",
+                cause, self._founder_revival_count, new_energy,
+                FOUNDER_REVIVAL_GRACE_CYCLES, self._global_cycle,
+            )
+            self._life_log.append_event(
+                event_type="founder_rescue",
+                payload={
+                    "organism_id": "AL-01",
+                    "cause": cause,
+                    "revival_count": self._founder_revival_count,
+                    "energy_after": new_energy,
+                    "cycle": self._global_cycle,
+                },
+            )
+            # Check extinction recovery (population may still be critical)
+            self.check_extinction_reseed()
+            return
+
+        # ── v3.28: Children — permanent death, no dormancy ──────────
+        # Children skip dormancy entirely and go straight to graveyard.
+        death_info = self._population.remove_member(
+            organism_id, cause, death_cycle=self._global_cycle)
         if death_info:
             self._evolution_tracker.record_death(
                 organism_id, self._global_cycle, cause,
@@ -2110,7 +2173,7 @@ class Organism:
                 },
             )
             self._logger.warning(
-                "[DEATH] %s died: %s at cycle %d",
+                "[DEATH] %s marked permanently dead → graveyard: cause=%s cycle=%d",
                 organism_id, cause, self._global_cycle,
             )
 
@@ -2212,12 +2275,9 @@ class Organism:
                     spawned.append(child_id)
                     to_spawn -= 1
 
-        # Also wake any dormant organisms
+        # v3.28: Do NOT wake dormant organisms during extinction recovery.
+        # Children with permanent death should never be revived.
         woke = []
-        for did in self._population.dormant_ids:
-            wake_record = self._population.wake_dormant(did, energy_boost=0.3)
-            if wake_record:
-                woke.append(did)
 
         recovery_record = {
             "event": "extinction_recovery",
@@ -2249,6 +2309,10 @@ class Organism:
     def wake_dormant_cycle(self) -> List[Dict[str, Any]]:
         """v3.15: Check dormant organisms and wake those whose conditions improved.
 
+        v3.28: Only AL-01 can legitimately enter dormancy. Children go
+        straight to graveyard on death, so dormant_ids should only contain
+        AL-01 (if at all). This method will NOT wake child organisms.
+
         Dormant organisms are woken when:
         - Resource pool is above scarcity threshold (conditions have improved)
         - OR population is critically low (< 5, extinction recovery)
@@ -2269,6 +2333,15 @@ class Organism:
             return woke
 
         for did in dormant_ids:
+            # v3.28: Only wake AL-01 (founder). Children with permanent
+            # death should never be revived through dormancy waking.
+            if did != "AL-01":
+                self._logger.error(
+                    "[ERROR] Dead child %s found in dormant_ids — "
+                    "children should not enter dormancy. Skipping.",
+                    did,
+                )
+                continue
             wake_record = self._population.wake_dormant(did, energy_boost=0.3)
             if wake_record:
                 self._life_log.append_event(
@@ -2325,9 +2398,8 @@ class Organism:
             member = self._population.get(oid)
             if not member:
                 continue
-            if not member.get("alive", True):
-                continue
-            if member.get("state") == "dormant":
+            if not LifecycleState.can_reproduce(
+                    member.get("lifecycle_state", LifecycleState.ACTIVE)):
                 continue
 
             fitness = member.get("genome", {}).get("fitness", 0.0)
@@ -2514,9 +2586,8 @@ class Organism:
 
         for cid in candidates:
             member = self._population.get(cid)
-            if member is None or not member.get("alive", True):
-                continue
-            if member.get("state") == "dormant":
+            if member is None or not LifecycleState.can_reproduce(
+                    member.get("lifecycle_state", LifecycleState.ACTIVE)):
                 continue
 
             energy = member.get("energy", 0.0)
@@ -2805,20 +2876,41 @@ class Organism:
             self._state["evolution_count"] = evolution
             self._state["last_boot_utc"] = now
 
-        # v3.4: Ensure AL-01 is alive and has energy on boot
-        al01 = self._population.get("AL-01")
-        if al01:
-            revive_fields: Dict[str, Any] = {}
-            if not al01.get("alive", True):
-                self._logger.warning("[BOOT] AL-01 was dead — reviving on boot")
-                revive_fields["alive"] = True
-                revive_fields["death_info"] = None
-                revive_fields["state"] = "idle"
-            if al01.get("energy", 0.0) <= 0.0:
-                self._logger.warning("[BOOT] AL-01 energy=0 — restoring to 0.5")
-                revive_fields["energy"] = 0.5
-            if revive_fields:
-                self._population.update_member("AL-01", revive_fields)
+        # v3.26: Restore _global_cycle from persisted state
+        with self._state_lock:
+            self._global_cycle = int(self._state.get("global_cycle", 0))
+            # Restore founder state from persisted state
+            self._founder_revival_count = int(self._state.get("founder_revival_count", 0))
+            self._founder_recovery_mode = bool(self._state.get("founder_recovery_mode", False))
+            self._founder_revival_grace_remaining = int(self._state.get("founder_revival_grace_remaining", 0))
+            self._founder_forced_mutate_streak = int(self._state.get("founder_forced_mutate_streak", 0))
+            self._founder_mutate_cooldown = int(self._state.get("founder_mutate_cooldown", 0))
+            self._founder_cycles_since_revival = int(self._state.get("founder_cycles_since_revival", 0))
+
+        # v3.28: Rescue AL-01 from graveyard on startup (founder protection)
+        rescued = self._population.rescue_from_graveyard("AL-01")
+        if rescued:
+            self._founder_revival_count += 1
+            self._founder_recovery_mode = True
+            self._founder_revival_grace_remaining = FOUNDER_REVIVAL_GRACE_CYCLES
+            self._logger.warning(
+                "[FOUNDER-RESCUE] AL-01 rescued from graveyard on boot "
+                "(revival_count=%d)",
+                self._founder_revival_count,
+            )
+
+        # v3.28: Startup validation — log errors for dead children in _members
+        for mid in list(self._population._members.keys()):
+            if mid == "AL-01":
+                continue
+            m = self._population._members[mid]
+            if m.get("lifecycle_state") == LifecycleState.DEAD:
+                self._logger.error(
+                    "[ERROR] Dead child %s found in _members on startup — "
+                    "should be in graveyard. Moving to graveyard.",
+                    mid,
+                )
+                self._population.remove_member(mid, cause="startup_cleanup")
 
         # Verify life-log integrity on startup
         self._life_log.startup_verify()
@@ -2919,6 +3011,14 @@ class Organism:
             self._state["state_version"] = int(self._state.get("state_version", 0)) + 1
             self._state["age_seconds"] = round(self.age_seconds, 2)
             self._state["last_tick_time"] = _utc_now()
+            # v3.26: Sync founder state to state dict before serialization
+            self._state["global_cycle"] = self._global_cycle
+            self._state["founder_revival_count"] = self._founder_revival_count
+            self._state["founder_recovery_mode"] = self._founder_recovery_mode
+            self._state["founder_revival_grace_remaining"] = self._founder_revival_grace_remaining
+            self._state["founder_forced_mutate_streak"] = self._founder_forced_mutate_streak
+            self._state["founder_mutate_cooldown"] = self._founder_mutate_cooldown
+            self._state["founder_cycles_since_revival"] = self._founder_cycles_since_revival
             state_snapshot = self._serialize_state(self._state)
         self._memory_manager.save_state(state_snapshot)
         self._logger.info(
@@ -3147,6 +3247,13 @@ class Organism:
             "energy": float(base.get("energy", 1.0)),
             # v3.0
             "global_cycle": int(base.get("global_cycle", 0)),
+            # v3.26: Founder state persistence
+            "founder_revival_count": int(base.get("founder_revival_count", 0)),
+            "founder_recovery_mode": bool(base.get("founder_recovery_mode", False)),
+            "founder_revival_grace_remaining": int(base.get("founder_revival_grace_remaining", 0)),
+            "founder_forced_mutate_streak": int(base.get("founder_forced_mutate_streak", 0)),
+            "founder_mutate_cooldown": int(base.get("founder_mutate_cooldown", 0)),
+            "founder_cycles_since_revival": int(base.get("founder_cycles_since_revival", 0)),
         }
 
     def _serialize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -3168,6 +3275,13 @@ class Organism:
             "energy": float(state.get("energy", 1.0)),
             # v3.0
             "global_cycle": int(state.get("global_cycle", 0)),
+            # v3.26: Founder state persistence
+            "founder_revival_count": int(state.get("founder_revival_count", 0)),
+            "founder_recovery_mode": bool(state.get("founder_recovery_mode", False)),
+            "founder_revival_grace_remaining": int(state.get("founder_revival_grace_remaining", 0)),
+            "founder_forced_mutate_streak": int(state.get("founder_forced_mutate_streak", 0)),
+            "founder_mutate_cooldown": int(state.get("founder_mutate_cooldown", 0)),
+            "founder_cycles_since_revival": int(state.get("founder_cycles_since_revival", 0)),
         }
 
 
