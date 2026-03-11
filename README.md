@@ -2,7 +2,7 @@
 
 A persistent, self-evolving digital organism ecosystem with autonomous reproduction, genome evolution, environmental pressure, and a live visual dashboard.
 
-**v3.24** — 1227 tests | 23 modules | 64 API endpoints | Canvas organism visualizer
+**v3.28** — 1241 tests | 23 modules | 64 API endpoints | Canvas organism visualizer
 
 ---
 
@@ -33,9 +33,9 @@ Key properties:
 | **Persistence** | SQLite primary store, Firestore cloud replication (optional), local JSON fallback (1000-entry cap), hourly snapshots with 30-day retention, absolute-path storage anchoring |
 | **Stabilization** | Minimum energy floor with conservation mode, population-scaled resource regeneration, adaptability recovery boost, stress feedback loop, energy-efficiency-weighted metabolism, extinction prevention guard |
 | **Evolution** | Novelty metric (genome distance), stagnation detection, population diversity scoring, evolution dashboard, innovation tracking |
-| **Ecosystem** | Anti-monoculture culling, environmental shock events, dormant organisms, extinction recovery via genesis vault, ecosystem stabilisation (pool floor, energy gates, probability scaling) |
+| **Ecosystem** | Anti-monoculture culling, environmental shock events, dormant organisms, extinction recovery via genesis vault, ecosystem stabilisation (pool floor, energy gates, probability scaling), permanent child death (no dormancy/revival for non-founders), founder-only rescue from graveyard |
 | **API** | 64 FastAPI endpoints — status, genome, population, lineage, species, fossils, evolution dashboard, novelty, diversity, export/import, experiment control, GPT bridge |
-| **Visual** | Full-screen canvas dashboard with 12 animation systems (pulse, halo, rings, vibration, shimmer, aura, physics, crowns, energy trail, heartbeat, fitness glow, dormant state) |
+| **Visual** | Full-screen canvas dashboard with 12 animation systems (pulse, halo, rings, vibration, shimmer, aura, physics, crowns, energy trail, heartbeat, fitness glow, dormant state) + mobile-first organic movement, visual idle states (exploring/resting/sleeping), smooth wall avoidance, center-biased spawning |
 
 ---
 
@@ -372,6 +372,8 @@ Traits mutate each evolution cycle (`mutation_rate=0.10`, `mutation_delta=0.10`)
 - **Energy gates** (v3.18): auto-reproduce requires energy ≥ 0.50, stability ≥ 0.60, lone survivor ≥ 0.40, rare ≥ 0.65; parent pays 0.20 energy cost per spawn
 - **Probability scaling** (v3.18): reproduction probability is multiplied by `pool_fraction` — low resources make reproduction rare
 - Children inherit parent genome + mutations, start with 0.8 energy
+- **Permanent child death** (v3.28): non-founder organisms die permanently — no dormancy, no revival, no rescue from graveyard
+- **Founder protection** (v3.28): AL-01 gets emergency energy injection at low energy, is the only organism eligible for graveyard rescue
 - Selection pressure: organisms below fitness 0.2 get 20 grace cycles before removal
 - Genesis vault auto-reseeds if population drops to zero
 - **Species tracking**: organisms diverging > 0.35 genome distance get separate species IDs
@@ -434,7 +436,7 @@ The `/visual` page renders every organism as an animated circle on a full-screen
 
 ### 12 Animation Systems
 
-1. **Energy Pulse** — circle radius oscillates with a sine wave, frequency proportional to energy level
+1. **Energy Pulse** — circle radius oscillates with a sine wave; frequency proportional to energy level; resting organisms pulse calmer (35% intensity) with gentle breathing oscillation
 2. **Awareness Halo** — soft radial gradient glow for organisms with awareness > 0.5
 3. **Evolution Rings** — rotating dashed rings appear every 250 evolutions (max 3), alternating direction
 4. **High-Energy Vibration** — position jitter and buzz when energy > 70% (intensity scales with surplus)
@@ -445,7 +447,26 @@ The `/visual` page renders every organism as an animated circle on a full-screen
 9. **Energy Trail** — particle emitters on high-energy organisms (>50%), gravity-affected sparks in organism color
 10. **Heartbeat Ring** — rhythmic expanding pulse ring on all living organisms
 11. **Fitness Glow Border** — green outline that brightens with fitness (>0.3)
-12. **Dormant State** — greyed-out, low-alpha, breathing opacity with 💀 skull marker
+12. **Dormant State** — greyed-out, low-alpha, peaceful breathing opacity with 💀 skull marker
+
+### Visual Idle States (visual-only, does not alter simulation)
+
+Each organism is classified into a display-only behaviour mode derived from real data:
+
+| State | Trigger | Visual Behaviour |
+|-------|---------|------------------|
+| **Exploring** | Energy > 0.35, fitness > 0.2 | Smooth curved arcs via curvature-based wander, occasional pause-turn-continue, resource attraction |
+| **Resting** | Energy < 0.25 or stagnation > 0.6 | Very gentle float (8% speed), subtle breathing scale oscillation, dimmed opacity (78%), stronger damping |
+| **Sleeping** | Dormant state | Near-stationary, grey desaturated, 💀 marker, minimal drift |
+
+### Mobile-First Organic Movement
+
+- **Smooth wall avoidance** — smoothstep cubic ramp replaces linear boundary force; organisms curve away from walls over a wide zone (2× margin)
+- **Wander-angle steering** — when near walls, `wanderAngle` is blended toward screen center so organisms don't aim at walls
+- **Center-biased spawning** — new organisms spawn from a Gaussian-ish distribution centered on screen, not uniform-random
+- **Gentle center pull** — organisms in the outer 35% of the screen get a soft quadratic pull toward center
+- **Mobile-aware margins** — boundary margin and force scale with screen size (larger margin on small screens)
+- **Stronger repulsion** — quadratic overlap force (110 strength, 3.5× radius) prevents wall-piled clumping
 
 ### Visual Encoding
 
@@ -466,6 +487,8 @@ The `/visual` page renders every organism as an animated circle on a full-screen
 | Heartbeat ring | Rhythmic expanding pulse on living organisms |
 | Green border | Fitness > 0.3 (brightness scales with fitness) |
 | Greyed + 💀 | Dormant state |
+| Dimmed + breathing | Resting state (low energy or high stagnation) |
+| Smooth arcs + pauses | Exploring state (healthy energy, active) |
 
 ---
 
@@ -550,7 +573,7 @@ pip install pytest httpx
 python -m pytest tests/ -v
 ```
 
-1227 tests across 32 files covering:
+1241 tests across 34 files covering:
 - Core organism lifecycle and state machine
 - Population spawning, death, pruning, and cap enforcement
 - Genome mutation, trade-offs, and soft ceilings
@@ -577,6 +600,7 @@ python -m pytest tests/ -v
 - Absolute-path storage, JSONL log rotation (50 MB), tick snapshot retention (200), RotatingFileHandler, reflection doubling fix, disk monitoring (v3.22)
 - Ecosystem stabilization: conservation mode, population-scaled regen, adaptability recovery, stress feedback, energy-efficiency metabolism, extinction prevention guard (v3.23)
 - Wire missing reproduction paths into scheduler: lone_survivor, stability_reproduction, wake_dormant (v3.24)
+- Permanent child death, founder-only graveyard rescue, dead member startup cleanup, wake_dormant/check_extinction skip non-founder organisms (v3.28)
 - Rare reproduction mechanics (5% gate, 2000-cycle cooldown)
 
 ---
@@ -620,6 +644,7 @@ python -m al01.cli verify --last 500
 
 | Version | Key Additions |
 |---------|--------------|
+| **v3.28** | Permanent child death & founder protection — non-founder organisms die permanently (no dormancy, no revival, no rescue from graveyard); AL-01 founder gets emergency energy injection at critically low energy; dead-organism guard clauses on `update_member()`/`update_energy()`; startup validation moves dead children from `_members` to graveyard; `rescue_from_graveyard()` restricted to AL-01 only; `wake_dormant_cycle()` skips non-AL-01; `check_extinction_reseed()` does not wake dormant organisms. Visual dashboard: mobile-first organic movement with smoothstep wall avoidance, visual idle states (exploring/resting/sleeping), curvature-based wander with pause-turn-continue, center-biased spawning, gentle center pull, mobile-aware boundary margins |
 | **v3.24** | Wire missing reproduction paths into MetabolismScheduler — `lone_survivor_reproduction()`, `stability_reproduction_cycle()`, and `wake_dormant_cycle()` were defined on Organism but never called by the tick loop; now invoked every `auto_reproduce_interval` ticks after `auto_reproduce_cycle()`, respecting death-before-reproduction ordering |
 | **v3.23** | Ecosystem stabilization — minimum energy floor with conservation mode (10% threshold, 30% metabolism), population-scaled resource regeneration (`population_regen_bonus=0.5` per organism), adaptability recovery boost (nudge +0.02/cycle when trait < 0.20), stress feedback loop (stress > 0.60 → exploration + mutation boost), energy_efficiency trait reduces per-cycle energy decay by up to 30%, extinction prevention guard (pop=1 → 3× regen + 100 flat pool boost) |
 | **v3.22** | Absolute-path storage anchoring — all file writes pinned to `D:\AL-01` via `al01/storage.py` module (overridable via `AL01_BASE_DIR` env var), RotatingFileHandler for al01.log (10 MB × 5 backups), JSONL log rotation for life_log/evolution_log/autonomy_log/cycle_log/experiment_log (50 MB × 3 backups), tick snapshot retention (keep newest 200), SQLite moved to `db/al01.db` with auto-migration, `tempfile.tempdir` redirected to `BASE_DIR/tmp/`, CLI defaults use absolute paths, per-event payload size cap (10 KB) to prevent reflection-doubling bug, periodic disk usage monitoring (warns at 10 GB), memory_manager backup/log paths absolutised |
