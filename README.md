@@ -2,7 +2,7 @@
 
 A persistent, self-evolving digital organism ecosystem with autonomous reproduction, genome evolution, environmental pressure, and a live visual dashboard.
 
-**v3.28** — 1241 tests | 23 modules | 64 API endpoints | Canvas organism visualizer
+**v3.30** — 1273 tests | 23 modules | 64 API endpoints | Canvas organism visualizer
 
 ---
 
@@ -601,6 +601,8 @@ python -m pytest tests/ -v
 - Ecosystem stabilization: conservation mode, population-scaled regen, adaptability recovery, stress feedback, energy-efficiency metabolism, extinction prevention guard (v3.23)
 - Wire missing reproduction paths into scheduler: lone_survivor, stability_reproduction, wake_dormant (v3.24)
 - Permanent child death, founder-only graveyard rescue, dead member startup cleanup, wake_dormant/check_extinction skip non-founder organisms (v3.28)
+- Restart-safe ecology: persisted survival counters, environment state restoration, 50-cycle recovery window suppresses all death/pruning after boot (v3.29)
+- Energy death guard: child and founder energy depletion deaths suppressed during restart recovery window (v3.30)
 - Rare reproduction mechanics (5% gate, 2000-cycle cooldown)
 
 ---
@@ -644,6 +646,8 @@ python -m al01.cli verify --last 500
 
 | Version | Key Additions |
 |---------|--------------|
+| **v3.30** | Energy death guard during restart recovery — child energy-depletion death (`energy ≤ 0`) is now suppressed during the 50-cycle restart recovery window (energy clamped to `energy_min` instead of killing); founder energy-depletion death handler also guarded (overrides `organism_died` flag, prevents unnecessary rescue cascade); closes the last unguarded death path that could cause mass extinction on restart |
+| **v3.29** | Restart-safe ecology — persists `_below_fitness_cycles`, `_last_birth_cycle`, `_conservation_mode`, and full environment state across restarts; boot restores all survival counters so grace periods are never lost; 50-cycle post-restart recovery window (`RESTART_RECOVERY_CYCLES`) suppresses fitness-floor death, population pruning, and founder death; `is_restart_recovery` / `restart_recovery_remaining` properties; environment `from_dict()` round-trip on every boot prevents trait-weight drift from causing artificial extinction; recovery countdown decrements each `autonomy_cycle` tick |
 | **v3.28** | Permanent child death & founder protection — non-founder organisms die permanently (no dormancy, no revival, no rescue from graveyard); AL-01 founder gets emergency energy injection at critically low energy; dead-organism guard clauses on `update_member()`/`update_energy()`; startup validation moves dead children from `_members` to graveyard; `rescue_from_graveyard()` restricted to AL-01 only; `wake_dormant_cycle()` skips non-AL-01; `check_extinction_reseed()` does not wake dormant organisms. Visual dashboard: mobile-first organic movement with smoothstep wall avoidance, visual idle states (exploring/resting/sleeping), curvature-based wander with pause-turn-continue, center-biased spawning, gentle center pull, mobile-aware boundary margins |
 | **v3.24** | Wire missing reproduction paths into MetabolismScheduler — `lone_survivor_reproduction()`, `stability_reproduction_cycle()`, and `wake_dormant_cycle()` were defined on Organism but never called by the tick loop; now invoked every `auto_reproduce_interval` ticks after `auto_reproduce_cycle()`, respecting death-before-reproduction ordering |
 | **v3.23** | Ecosystem stabilization — minimum energy floor with conservation mode (10% threshold, 30% metabolism), population-scaled resource regeneration (`population_regen_bonus=0.5` per organism), adaptability recovery boost (nudge +0.02/cycle when trait < 0.20), stress feedback loop (stress > 0.60 → exploration + mutation boost), energy_efficiency trait reduces per-cycle energy decay by up to 30%, extinction prevention guard (pop=1 → 3× regen + 100 flat pool boost) |

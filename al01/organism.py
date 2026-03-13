@@ -82,6 +82,9 @@ RARE_REPRO_CHILD_ENERGY: float = 0.50   # child starts with this energy
 RARE_REPRO_MUTATION_RATE: float = 0.10  # mutation variance for child genome
 RARE_REPRO_COOLDOWN_CYCLES: int = 2000  # min cycles between births per parent
 
+# ── v3.29: Restart recovery constants ─────────────────────────────────
+RESTART_RECOVERY_CYCLES: int = 50       # cycles after boot before full selection
+
 # ── v3.12: Novelty & stagnation detection constants ─────────────────
 NOVELTY_HISTORY_MAX: int = 500          # rolling window of novelty scores
 NOVELTY_STAGNATION_WINDOW: int = 100    # last N births to average
@@ -531,6 +534,9 @@ class Organism:
         self._founder_recovery_mode: bool = False
         self._founder_cycles_since_revival: int = 0
 
+        # v3.29: Restart recovery — protect organisms from artificial extinction on boot
+        self._restart_recovery_remaining: int = 0
+
         # v3.4: Default population cap (overridden by ExperimentConfig when active)
         self._default_max_population: int = 60
 
@@ -724,6 +730,16 @@ class Organism:
     def alert_guardrails(self) -> AlertGuardrails:
         """v3.6: Alert guardrails accessor."""
         return self._alert_guardrails
+
+    @property
+    def is_restart_recovery(self) -> bool:
+        """v3.29: True while in post-restart recovery window."""
+        return self._restart_recovery_remaining > 0
+
+    @property
+    def restart_recovery_remaining(self) -> int:
+        """v3.29: Cycles remaining in restart recovery window."""
+        return self._restart_recovery_remaining
 
     @property
     def internal_signal(self) -> InternalSignal:
@@ -1172,6 +1188,12 @@ class Organism:
         """
         self._global_cycle += 1
 
+        # v3.29: Tick restart recovery countdown
+        if self._restart_recovery_remaining > 0:
+            self._restart_recovery_remaining -= 1
+            if self._restart_recovery_remaining == 0:
+                self._logger.info("[RECOVERY] Restart recovery window ended — full selection resumed")
+
         # v3.25: Tick founder recovery counters
         if self._founder_revival_grace_remaining > 0:
             self._founder_revival_grace_remaining -= 1
@@ -1319,41 +1341,46 @@ class Organism:
         # v3.3: Survival grace cycles — track consecutive cycles below fitness floor
         # v3.8: Use FOUNDER_FITNESS_FLOOR for the parent (much lower than children)
         # v3.25: Extended grace during founder recovery mode
-        survival_threshold = 0.2
-        founder_threshold = FOUNDER_FITNESS_FLOOR
-        survival_grace = 20
-        if self._experiment:
-            survival_threshold = self._experiment.config.survival_fitness_threshold
-            survival_grace = self._experiment.config.survival_grace_cycles
-        # v3.13: Scarcity pressure reduces survival grace
-        survival_grace = self._environment.effective_survival_grace(survival_grace)
-        effective_threshold = founder_threshold
-        if fitness < effective_threshold:
-            self._below_fitness_cycles["AL-01"] = self._below_fitness_cycles.get("AL-01", 0) + 1
-            if self._below_fitness_cycles["AL-01"] >= survival_grace:
-                # v3.25: Log detailed death context for founder spiral analysis
-                self._logger.warning(
-                    "[FOUNDER-DEATH] AL-01 died: cause=fitness_floor "
-                    "fitness=%.4f energy=%.4f forced_mutate_streak=%d "
-                    "scarcity_mult=%.2f cycles_since_revival=%d "
-                    "revival_count=%d recovery_mode=%s grace_remaining=%d",
-                    fitness, energy,
-                    self._founder_forced_mutate_streak,
-                    env_modifiers.get("mutation_cost_multiplier", 1.0),
-                    self._founder_cycles_since_revival,
-                    self._founder_revival_count,
-                    self._founder_recovery_mode,
-                    self._founder_revival_grace_remaining,
-                )
-                self._handle_death("AL-01", "fitness_floor")
-                record["organism_died"] = True
-                record["death_cause"] = "fitness_floor"
-                return record
+        # v3.29: Skip founder death during restart recovery window
+        if self._restart_recovery_remaining > 0:
+            record["restart_recovery"] = True
         else:
-            self._below_fitness_cycles["AL-01"] = 0
+            survival_threshold = 0.2
+            founder_threshold = FOUNDER_FITNESS_FLOOR
+            survival_grace = 20
+            if self._experiment:
+                survival_threshold = self._experiment.config.survival_fitness_threshold
+                survival_grace = self._experiment.config.survival_grace_cycles
+            # v3.13: Scarcity pressure reduces survival grace
+            survival_grace = self._environment.effective_survival_grace(survival_grace)
+            effective_threshold = founder_threshold
+            if fitness < effective_threshold:
+                self._below_fitness_cycles["AL-01"] = self._below_fitness_cycles.get("AL-01", 0) + 1
+                if self._below_fitness_cycles["AL-01"] >= survival_grace:
+                    # v3.25: Log detailed death context for founder spiral analysis
+                    self._logger.warning(
+                        "[FOUNDER-DEATH] AL-01 died: cause=fitness_floor "
+                        "fitness=%.4f energy=%.4f forced_mutate_streak=%d "
+                        "scarcity_mult=%.2f cycles_since_revival=%d "
+                        "revival_count=%d recovery_mode=%s grace_remaining=%d",
+                        fitness, energy,
+                        self._founder_forced_mutate_streak,
+                        env_modifiers.get("mutation_cost_multiplier", 1.0),
+                        self._founder_cycles_since_revival,
+                        self._founder_revival_count,
+                        self._founder_recovery_mode,
+                        self._founder_revival_grace_remaining,
+                    )
+                    self._handle_death("AL-01", "fitness_floor")
+                    record["organism_died"] = True
+                    record["death_cause"] = "fitness_floor"
+                    return record
+            else:
+                self._below_fitness_cycles["AL-01"] = 0
 
         # Check for death (energy depletion)
-        if record.get("organism_died"):
+        # v3.30: Skip founder energy death during restart recovery window
+        if record.get("organism_died") and self._restart_recovery_remaining <= 0:
             # v3.25: Log detailed death context
             self._logger.warning(
                 "[FOUNDER-DEATH] AL-01 died: cause=energy_depleted "
@@ -1369,6 +1396,10 @@ class Organism:
             )
             self._handle_death("AL-01", "energy_depleted")
             return record
+        elif record.get("organism_died"):
+            # During recovery, inject emergency energy instead of death cascade
+            record["organism_died"] = False
+            record["restart_recovery"] = True
 
         # Entropy decay — if engine signals idle, decay traits
         # v3.0: scale by environment entropy pressure
@@ -1698,7 +1729,8 @@ class Organism:
         repro_threshold = self._environment.effective_reproduction_threshold(repro_threshold)
 
         # v3.4: Prune if already over cap (e.g. from pre-existing population)
-        if self._population.size > max_pop:
+        # v3.29: Skip pruning during restart recovery window
+        if self._population.size > max_pop and self._restart_recovery_remaining <= 0:
             min_keep = 2
             if self._experiment:
                 min_keep = self._experiment.config.min_population
@@ -1766,7 +1798,8 @@ class Organism:
                     break
 
         # Prune if over cap
-        if self._population.size > max_pop:
+        # v3.29: Skip post-reproduction pruning during restart recovery window
+        if self._population.size > max_pop and self._restart_recovery_remaining <= 0:
             min_keep = 2
             if self._experiment:
                 min_keep = self._experiment.config.min_population
@@ -1930,21 +1963,23 @@ class Organism:
             # v3.13: Scarcity pressure reduces survival grace
             base_survival_grace = survival_grace
             effective_grace = self._environment.effective_survival_grace(base_survival_grace)
-            if fitness < survival_threshold:
-                self._below_fitness_cycles[oid] = self._below_fitness_cycles.get(oid, 0) + 1
-                if self._below_fitness_cycles[oid] >= effective_grace:
-                    self._logger.warning(
-                        "[SURVIVAL] %s below fitness floor %.4f for %d cycles — death",
-                        oid, survival_threshold, self._below_fitness_cycles[oid],
-                    )
-                    self._handle_death(oid, "fitness_floor")
-                    results.append({
-                        "organism_id": oid, "decision": "death",
-                        "cause": "fitness_floor", "fitness": fitness,
-                    })
-                    continue
-            else:
-                self._below_fitness_cycles[oid] = 0
+            # v3.29: Skip child death during restart recovery window
+            if self._restart_recovery_remaining <= 0:
+                if fitness < survival_threshold:
+                    self._below_fitness_cycles[oid] = self._below_fitness_cycles.get(oid, 0) + 1
+                    if self._below_fitness_cycles[oid] >= effective_grace:
+                        self._logger.warning(
+                            "[SURVIVAL] %s below fitness floor %.4f for %d cycles — death",
+                            oid, survival_threshold, self._below_fitness_cycles[oid],
+                        )
+                        self._handle_death(oid, "fitness_floor")
+                        results.append({
+                            "organism_id": oid, "decision": "death",
+                            "cause": "fitness_floor", "fitness": fitness,
+                        })
+                        continue
+                else:
+                    self._below_fitness_cycles[oid] = 0
 
             # Decision logic — simplified version of parent's autonomy
             evo_count = member.get("evolution_count", 0)
@@ -2047,7 +2082,8 @@ class Organism:
                     "[SLEEPING] %s waking from sleep (energy=%.4f)",
                     oid, energy,
                 )
-            if energy <= 0.0:
+            # v3.30: Skip child energy death during restart recovery window
+            if energy <= 0.0 and self._restart_recovery_remaining <= 0:
                 self._logger.warning(
                     "[CHILD-ENERGY] %s energy depleted — death", oid,
                 )
@@ -2057,6 +2093,9 @@ class Organism:
                     "cause": "energy_depleted", "fitness": fitness,
                 })
                 continue
+            elif energy <= 0.0:
+                # During recovery, clamp energy to minimum instead of killing
+                energy = cfg.energy_min
 
             # Write back updated genome, evolution_count, AND energy
             self._population.update_member(oid, {
@@ -2887,6 +2926,46 @@ class Organism:
             self._founder_mutate_cooldown = int(self._state.get("founder_mutate_cooldown", 0))
             self._founder_cycles_since_revival = int(self._state.get("founder_cycles_since_revival", 0))
 
+            # v3.29: Restore survival-critical counters so restart doesn't reset grace
+            self._below_fitness_cycles = {
+                k: int(v) for k, v in self._state.get("below_fitness_cycles", {}).items()
+            }
+            self._last_birth_cycle = {
+                k: int(v) for k, v in self._state.get("last_birth_cycle", {}).items()
+            }
+            self._conservation_mode = {
+                k: bool(v) for k, v in self._state.get("conservation_mode", {}).items()
+            }
+
+        # v3.29: Restore environment from persisted state (prevents trait-weight drift)
+        env_state = self._state.get("environment_state")
+        if env_state and isinstance(env_state, dict):
+            from al01.environment import EnvironmentConfig
+            restored_env = Environment.from_dict(env_state, config=self._environment._config)
+            # Transfer restored internal state into the live environment object
+            self._environment._cycle = restored_env._cycle
+            self._environment._resource_pool = restored_env._resource_pool
+            self._environment._temperature = restored_env._temperature
+            self._environment._entropy_pressure = restored_env._entropy_pressure
+            self._environment._resource_abundance = restored_env._resource_abundance
+            self._environment._noise_level = restored_env._noise_level
+            self._environment._scarcity_events = restored_env._scarcity_events
+            self._environment._shift_log = restored_env._shift_log
+            self._environment._scarcity_log = restored_env._scarcity_log
+            self._environment._next_shift_cycle = restored_env._next_shift_cycle
+            self._environment._shock_events = restored_env._shock_events
+            self._environment._shock_log = restored_env._shock_log
+            self._environment._named_events = restored_env._named_events
+            self._environment._named_event_log = restored_env._named_event_log
+            self._logger.info("[BOOT] Environment restored from persisted state (cycle=%d)", restored_env._cycle)
+
+        # v3.29: Activate restart recovery window — suppress selection for N cycles
+        self._restart_recovery_remaining = RESTART_RECOVERY_CYCLES
+        self._logger.info(
+            "[BOOT] Restart recovery window active for %d cycles",
+            RESTART_RECOVERY_CYCLES,
+        )
+
         # v3.28: Rescue AL-01 from graveyard on startup (founder protection)
         rescued = self._population.rescue_from_graveyard("AL-01")
         if rescued:
@@ -3019,6 +3098,11 @@ class Organism:
             self._state["founder_forced_mutate_streak"] = self._founder_forced_mutate_streak
             self._state["founder_mutate_cooldown"] = self._founder_mutate_cooldown
             self._state["founder_cycles_since_revival"] = self._founder_cycles_since_revival
+            # v3.29: Sync survival counters & environment to state dict before serialization
+            self._state["below_fitness_cycles"] = {k: int(v) for k, v in self._below_fitness_cycles.items()}
+            self._state["last_birth_cycle"] = {k: int(v) for k, v in self._last_birth_cycle.items()}
+            self._state["conservation_mode"] = {k: bool(v) for k, v in self._conservation_mode.items()}
+            self._state["environment_state"] = self._environment.to_dict()
             state_snapshot = self._serialize_state(self._state)
         self._memory_manager.save_state(state_snapshot)
         self._logger.info(
@@ -3254,6 +3338,11 @@ class Organism:
             "founder_forced_mutate_streak": int(base.get("founder_forced_mutate_streak", 0)),
             "founder_mutate_cooldown": int(base.get("founder_mutate_cooldown", 0)),
             "founder_cycles_since_revival": int(base.get("founder_cycles_since_revival", 0)),
+            # v3.29: Per-organism survival counters & environment state
+            "below_fitness_cycles": base.get("below_fitness_cycles", {}),
+            "last_birth_cycle": base.get("last_birth_cycle", {}),
+            "conservation_mode": base.get("conservation_mode", {}),
+            "environment_state": base.get("environment_state", None),
         }
 
     def _serialize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -3282,6 +3371,11 @@ class Organism:
             "founder_forced_mutate_streak": int(state.get("founder_forced_mutate_streak", 0)),
             "founder_mutate_cooldown": int(state.get("founder_mutate_cooldown", 0)),
             "founder_cycles_since_revival": int(state.get("founder_cycles_since_revival", 0)),
+            # v3.29: Persist per-organism survival counters & environment state
+            "below_fitness_cycles": {k: int(v) for k, v in self._below_fitness_cycles.items()},
+            "last_birth_cycle": {k: int(v) for k, v in self._last_birth_cycle.items()},
+            "conservation_mode": {k: bool(v) for k, v in self._conservation_mode.items()},
+            "environment_state": self._environment.to_dict(),
         }
 
 

@@ -1661,6 +1661,13 @@ def create_app(organism: Organism, api_key: Optional[str] = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # --- ngrok interstitial skip — lets API clients bypass warning page
+    @app.middleware("http")
+    async def _ngrok_skip_header(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["ngrok-skip-browser-warning"] = "true"
+        return response
+
     # --- Global exception handler ------------------------------------
     @app.exception_handler(Exception)
     async def _global_exception_handler(request: Request, exc: Exception) -> JSONResponse:

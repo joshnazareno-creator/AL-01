@@ -1,0 +1,597 @@
+{
+  "snapshot_version": 1,
+  "timestamp": "2026-03-12T16:23:02.181727+00:00",
+  "timestamp_unix": 1773332582.181727,
+  "label": "auto",
+  "state": {
+    "interaction_count": 170,
+    "memory_size": 1000,
+    "awareness": 0.600598,
+    "evolution_count": 938,
+    "version": "3.9",
+    "uptime_seconds": 43201.87,
+    "age_seconds": 1294112.8,
+    "birth_time": "2026-02-25T16:54:29.385995+00:00",
+    "uptime_sessions": 262,
+    "integrity_status": "OK",
+    "life_log_events": 42527,
+    "policy_weights": {
+      "curiosity_weight": 0.5,
+      "risk_weight": 0.3,
+      "social_weight": 0.5
+    },
+    "total_interactions_all_time": 1,
+    "first_snapshot_timestamp": "2026-02-25T07:36:49.747960+00:00",
+    "snapshot_count": 95,
+    "firestore_writes_today": 840,
+    "genome": {
+      "traits": {
+        "adaptability": 0.320766,
+        "energy_efficiency": 0.296145,
+        "resilience": 0.307346,
+        "perception": 0.336306,
+        "creativity": 0.308213
+      },
+      "effective_traits": {
+        "adaptability": 0.320766,
+        "energy_efficiency": 0.296145,
+        "resilience": 0.307346,
+        "perception": 0.336306,
+        "creativity": 0.308213
+      },
+      "fitness": 0.912719,
+      "trait_fitness": 0.313755,
+      "mutation_rate": 0.1,
+      "mutation_delta": 0.1,
+      "fitness_components": {
+        "survival": 1.0,
+        "efficiency": 1.0,
+        "stability": 0.92526,
+        "adaptation": 0.517781
+      }
+    },
+    "fitness": 0.912719,
+    "fitness_components": {
+      "survival": 1.0,
+      "efficiency": 1.0,
+      "stability": 0.9252600866835246,
+      "adaptation": 0.5177809388335705
+    },
+    "population_size": 12,
+    "population_ids": [
+      "AL-01",
+      "AL-01-child-139",
+      "AL-01-child-203",
+      "AL-01-child-204",
+      "AL-01-child-205",
+      "AL-01-child-206",
+      "AL-01-child-207",
+      "AL-01-child-208",
+      "AL-01-child-209",
+      "AL-01-child-210",
+      "AL-01-child-211",
+      "AL-01-child-212"
+    ],
+    "pending_stimuli": 0,
+    "brain_enabled": true,
+    "stagnation_count": 6,
+    "autonomy": {
+      "stagnation_count": 6,
+      "is_stagnant": true,
+      "total_decisions": 17554,
+      "fitness_history_len": 10,
+      "fitness_variance": 2.724e-05,
+      "decision_interval": 10,
+      "fitness_threshold": 0.45,
+      "effective_fitness_threshold": 0.575387,
+      "stagnation_window": 10,
+      "awareness": 0.600545,
+      "total_stimuli": 125,
+      "energy": 0.944888,
+      "exploration_mode": true,
+      "recovery_mode": false,
+      "low_energy_consecutive": 0,
+      "novelty_accumulator": 0.3,
+      "mutation_rate_offset": 0.002448,
+      "env_trait_weights": {
+        "adaptability": 1.5501,
+        "energy_efficiency": 1.5525,
+        "resilience": 0.5,
+        "perception": 1.4807,
+        "creativity": 0.8086
+      },
+      "idle_cycles": 862,
+      "entropy_active": true,
+      "vital_score": {
+        "vital_index": 36.14,
+        "identity_persistence": 92.53,
+        "trait_variance": 0.27,
+        "adaptation_success": 51.78,
+        "entropy_resistance": 0.0,
+        "adaptation_attempts": 703,
+        "adaptation_successes": 364
+      }
+    },
+    "vital_score": {
+      "vital_index": 36.14,
+      "identity_persistence": 92.53,
+      "trait_variance": 0.27,
+      "adaptation_success": 51.78,
+      "entropy_resistance": 0.0,
+      "adaptation_attempts": 703,
+      "adaptation_successes": 364
+    },
+    "global_cycle": 4012,
+    "environment": {
+      "cycle": 1725,
+      "resource_pool": 330.6986,
+      "temperature": 0.790354,
+      "entropy_pressure": 0.801396,
+      "resource_abundance": 0.705466,
+      "noise_level": 0.33872,
+      "effective_abundance": 0.413513,
+      "mutation_cost_multiplier": 1.3952,
+      "energy_regen_rate": 0.1734,
+      "trait_decay_multiplier": 2.6028,
+      "fitness_noise_penalty": 0.050808,
+      "survival_modifier": 0.2685,
+      "active_scarcity_count": 1,
+      "scarcity_events": [
+        {
+          "severity": 0.5839,
+          "remaining_cycles": 7,
+          "started_at": "2026-03-12T16:18:39.279429+00:00",
+          "abundance_reduction": 0.292
+        }
+      ],
+      "next_shift_cycle": 1737,
+      "active_shock_count": 0,
+      "shock_events": [],
+      "shock_resilience_bonus": 0,
+      "pool_fraction": 0.3307,
+      "is_scarcity_pressure": false,
+      "scarcity_severity": 0.0,
+      "effective_metabolic_cost": 1.0,
+      "emergency_regen_active": false,
+      "emergency_regen_threshold": 0.25,
+      "adaptive_metabolism_active": false,
+      "resource_carrying_capacity": 60,
+      "active_named_events": [],
+      "named_event_names": [],
+      "mutation_rate_multiplier": 1.0,
+      "metabolic_multiplier": 1.0
+    },
+    "trait_variance": {
+      "adaptability": 0.01926188,
+      "resilience": 0.01276678,
+      "creativity": 0.01735677,
+      "energy_efficiency": 0.05831097,
+      "perception": 0.01360669
+    },
+    "behavior_summary": {
+      "organism_profiles": {
+        "AL-01": {
+          "organism_id": "AL-01",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.987
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.976
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.974
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 650,
+              "confidence": 0.954
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 862
+        },
+        "AL-01-child-139": {
+          "organism_id": "AL-01-child-139",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.984,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.984
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.958
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.14,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 0.825
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 400,
+              "confidence": 0.988
+            }
+          ],
+          "decision_count": 769
+        },
+        "AL-01-child-203": {
+          "organism_id": "AL-01-child-203",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.08,
+              "mutate_ratio": 0.92,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 62
+        },
+        "AL-01-child-204": {
+          "organism_id": "AL-01-child-204",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.08,
+              "mutate_ratio": 0.92,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 62
+        },
+        "AL-01-child-205": {
+          "organism_id": "AL-01-child-205",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-206": {
+          "organism_id": "AL-01-child-206",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.982
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-207": {
+          "organism_id": "AL-01-child-207",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-208": {
+          "organism_id": "AL-01-child-208",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "generalist",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-209": {
+          "organism_id": "AL-01-child-209",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-210": {
+          "organism_id": "AL-01-child-210",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "generalist",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-211": {
+          "organism_id": "AL-01-child-211",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.965
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        },
+        "AL-01-child-212": {
+          "organism_id": "AL-01-child-212",
+          "decision_history_len": 39,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.0,
+              "mutate_ratio": 1.0,
+              "blend_ratio": 0.0,
+              "decision_count": 39
+            }
+          },
+          "strategy_drift_history": [],
+          "decision_count": 39
+        }
+      },
+      "strategy_distribution": {
+        "explorer": 11,
+        "specialist": 1
+      },
+      "diversity": {
+        "shannon": 0.286836,
+        "simpson": 0.152778,
+        "richness": 2,
+        "evenness": 0.413817
+      },
+      "convergence": {
+        "status": "diverging",
+        "slope": 0.00129651,
+        "current_variance": 0.02426062,
+        "variance_samples": 20,
+        "trait_convergence": {
+          "adaptability": "diverging",
+          "resilience": "stable",
+          "creativity": "diverging",
+          "energy_efficiency": "diverging",
+          "perception": "diverging"
+        },
+        "fitness_spread": 0.381006
+      },
+      "tracked_organisms": 12
+    },
+    "evolution_tracker": {
+      "generation_counter": 13,
+      "mutation_events": 12125,
+      "lineages": 85
+    },
+    "experiment": null,
+    "snapshot_manager": {
+      "running": true,
+      "interval_seconds": 3600,
+      "retention_days": 30,
+      "total_snapshots": 185,
+      "snapshots_this_session": 11,
+      "disk_usage_bytes": 11174638,
+      "disk_usage_mb": 10.66,
+      "oldest_snapshot": "2026-02-27T11:04:45.712858+00:00",
+      "newest_snapshot": "2026-03-12T15:23:02.135065+00:00",
+      "remote_sync_enabled": true,
+      "snapshot_dir": "D:\\AL-01\\snapshots/hourly"
+    }
+  },
+  "checksum": "b72af477f8c7f8dd425e69a312a4d3b5efd03ab19a4ea8d8fc45de76de0a375e"
+}
