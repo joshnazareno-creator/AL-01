@@ -1,0 +1,5184 @@
+{
+  "snapshot_version": 1,
+  "timestamp": "2026-03-13T13:05:16.329007+00:00",
+  "timestamp_unix": 1773407116.329007,
+  "label": "auto",
+  "state": {
+    "interaction_count": 170,
+    "memory_size": 1000,
+    "awareness": 0.601218,
+    "evolution_count": 1097,
+    "version": "3.9",
+    "uptime_seconds": 39602.45,
+    "age_seconds": 1368646.95,
+    "birth_time": "2026-02-25T16:54:29.385995+00:00",
+    "uptime_sessions": 267,
+    "integrity_status": "OK",
+    "life_log_events": 46292,
+    "policy_weights": {
+      "curiosity_weight": 0.5,
+      "risk_weight": 0.3,
+      "social_weight": 0.5
+    },
+    "total_interactions_all_time": 1,
+    "first_snapshot_timestamp": "2026-02-25T07:36:49.747960+00:00",
+    "snapshot_count": 98,
+    "firestore_writes_today": 756,
+    "genome": {
+      "traits": {
+        "adaptability": 0.533792,
+        "energy_efficiency": 0.544365,
+        "resilience": 0.55622,
+        "perception": 0.532955,
+        "creativity": 0.542064
+      },
+      "effective_traits": {
+        "adaptability": 0.533792,
+        "energy_efficiency": 0.544365,
+        "resilience": 0.55622,
+        "perception": 0.532955,
+        "creativity": 0.542064
+      },
+      "fitness": 0.94106,
+      "trait_fitness": 0.541879,
+      "mutation_rate": 0.1,
+      "mutation_delta": 0.1,
+      "fitness_components": {
+        "survival": 1.0,
+        "efficiency": 1.0,
+        "stability": 0.931592,
+        "adaptation": 0.698276
+      }
+    },
+    "fitness": 0.94106,
+    "fitness_components": {
+      "survival": 1.0,
+      "efficiency": 1.0,
+      "stability": 0.9315924128632814,
+      "adaptation": 0.6982758620689655
+    },
+    "population_size": 60,
+    "population_ids": [
+      "AL-01",
+      "AL-01-child-203",
+      "AL-01-child-209",
+      "AL-01-child-210",
+      "AL-01-child-212",
+      "AL-01-child-221",
+      "AL-01-child-233",
+      "AL-01-child-234",
+      "AL-01-child-235",
+      "AL-01-child-236",
+      "AL-01-child-237",
+      "AL-01-child-238",
+      "AL-01-child-239",
+      "AL-01-child-240",
+      "AL-01-child-241",
+      "AL-01-child-242",
+      "AL-01-child-243",
+      "AL-01-child-244",
+      "AL-01-child-245",
+      "AL-01-child-246",
+      "AL-01-child-247",
+      "AL-01-child-248",
+      "AL-01-child-249",
+      "AL-01-child-250",
+      "AL-01-child-251",
+      "AL-01-child-252",
+      "AL-01-child-253",
+      "AL-01-child-254",
+      "AL-01-child-255",
+      "AL-01-child-256",
+      "AL-01-child-257",
+      "AL-01-child-258",
+      "AL-01-child-259",
+      "AL-01-child-260",
+      "AL-01-child-261",
+      "AL-01-child-262",
+      "AL-01-child-263",
+      "AL-01-child-264",
+      "AL-01-child-265",
+      "AL-01-child-266",
+      "AL-01-child-267",
+      "AL-01-child-268",
+      "AL-01-child-269",
+      "AL-01-child-270",
+      "AL-01-child-271",
+      "AL-01-child-272",
+      "AL-01-child-273",
+      "AL-01-child-274",
+      "AL-01-child-275",
+      "AL-01-child-276",
+      "AL-01-child-277",
+      "AL-01-child-278",
+      "AL-01-child-279",
+      "AL-01-child-280",
+      "AL-01-child-281",
+      "AL-01-child-282",
+      "AL-01-child-283",
+      "AL-01-child-284",
+      "AL-01-child-285",
+      "AL-01-child-286"
+    ],
+    "pending_stimuli": 0,
+    "brain_enabled": true,
+    "stagnation_count": 7,
+    "autonomy": {
+      "stagnation_count": 7,
+      "is_stagnant": true,
+      "total_decisions": 19034,
+      "fitness_history_len": 10,
+      "fitness_variance": 6.159e-05,
+      "decision_interval": 10,
+      "fitness_threshold": 0.45,
+      "effective_fitness_threshold": 0.418833,
+      "stagnation_window": 10,
+      "awareness": 0.601232,
+      "total_stimuli": 125,
+      "energy": 0.984319,
+      "exploration_mode": true,
+      "recovery_mode": false,
+      "low_energy_consecutive": 0,
+      "novelty_accumulator": 0.3,
+      "mutation_rate_offset": -0.040733,
+      "env_trait_weights": {
+        "adaptability": 1.354,
+        "energy_efficiency": 1.8847,
+        "resilience": 0.9829,
+        "perception": 1.2426,
+        "creativity": 0.7813
+      },
+      "idle_cycles": 790,
+      "entropy_active": true,
+      "vital_score": {
+        "vital_index": 40.9,
+        "identity_persistence": 93.16,
+        "trait_variance": 0.62,
+        "adaptation_success": 69.83,
+        "entropy_resistance": 0.0,
+        "adaptation_attempts": 464,
+        "adaptation_successes": 324
+      }
+    },
+    "vital_score": {
+      "vital_index": 40.9,
+      "identity_persistence": 93.16,
+      "trait_variance": 0.62,
+      "adaptation_success": 69.83,
+      "entropy_resistance": 0.0,
+      "adaptation_attempts": 464,
+      "adaptation_successes": 324
+    },
+    "global_cycle": 5491,
+    "environment": {
+      "cycle": 1581,
+      "resource_pool": 566.3769,
+      "temperature": 0.222396,
+      "entropy_pressure": 0.042891,
+      "resource_abundance": 0.767048,
+      "noise_level": 0.0,
+      "effective_abundance": 0.375731,
+      "mutation_cost_multiplier": 1.1112,
+      "energy_regen_rate": 0.1671,
+      "trait_decay_multiplier": 1.0858,
+      "fitness_noise_penalty": 0.0,
+      "survival_modifier": 0.3194,
+      "active_scarcity_count": 2,
+      "scarcity_events": [
+        {
+          "severity": 0.3042,
+          "remaining_cycles": 4,
+          "started_at": "2026-03-13T13:01:39.406322+00:00",
+          "abundance_reduction": 0.1521
+        },
+        {
+          "severity": 0.4785,
+          "remaining_cycles": 2,
+          "started_at": "2026-03-13T13:02:54.534983+00:00",
+          "abundance_reduction": 0.2392
+        }
+      ],
+      "next_shift_cycle": 1603,
+      "active_shock_count": 0,
+      "shock_events": [],
+      "shock_resilience_bonus": 0,
+      "pool_fraction": 0.5664,
+      "is_scarcity_pressure": false,
+      "scarcity_severity": 0.0,
+      "effective_metabolic_cost": 1.0,
+      "emergency_regen_active": false,
+      "emergency_regen_threshold": 0.25,
+      "adaptive_metabolism_active": false,
+      "resource_carrying_capacity": 60,
+      "active_named_events": [],
+      "named_event_names": [],
+      "mutation_rate_multiplier": 1.0,
+      "metabolic_multiplier": 1.0
+    },
+    "trait_variance": {
+      "energy_efficiency": 0.00070668,
+      "creativity": 0.00144582,
+      "resilience": 0.00053111,
+      "adaptability": 0.00073484,
+      "perception": 0.00044703
+    },
+    "behavior_summary": {
+      "organism_profiles": {
+        "AL-01": {
+          "organism_id": "AL-01",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.995,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.995
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.978
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.64,
+              "mutate_ratio": 0.36,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.987
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 350,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 450,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 1.0
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 650,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.989
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-203": {
+          "organism_id": "AL-01-child-203",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.997,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.997
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.994
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-209": {
+          "organism_id": "AL-01-child-209",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.948,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.948
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.52,
+              "mutate_ratio": 0.48,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.95
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.994
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 400,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.988
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-210": {
+          "organism_id": "AL-01-child-210",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.972,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.972
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.828
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.767
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.54,
+              "mutate_ratio": 0.46,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-212": {
+          "organism_id": "AL-01-child-212",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.978,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.978
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.849
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.733
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.56,
+              "mutate_ratio": 0.44,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.984
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-221": {
+          "organism_id": "AL-01-child-221",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 0.933,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.665
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.988
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.987
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.979
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-233": {
+          "organism_id": "AL-01-child-233",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.989,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.989
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.989
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-234": {
+          "organism_id": "AL-01-child-234",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.938,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.938
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.879
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.989
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 700,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-235": {
+          "organism_id": "AL-01-child-235",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.99
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-236": {
+          "organism_id": "AL-01-child-236",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.974,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.974
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.95
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.988
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-237": {
+          "organism_id": "AL-01-child-237",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.972,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.972
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 100,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.972
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-238": {
+          "organism_id": "AL-01-child-238",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.959,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.959
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.86
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.52,
+              "mutate_ratio": 0.48,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.807
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.985
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-239": {
+          "organism_id": "AL-01-child-239",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.993,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.993
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-240": {
+          "organism_id": "AL-01-child-240",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.988
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.954
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.825
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.66,
+              "mutate_ratio": 0.32,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 450,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 700,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-241": {
+          "organism_id": "AL-01-child-241",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.989,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.989
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.975
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.971
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.995
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-242": {
+          "organism_id": "AL-01-child-242",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.997,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.997
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.865
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.981
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-243": {
+          "organism_id": "AL-01-child-243",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.941,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.941
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.857
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.997
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 650,
+              "confidence": 0.975
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-244": {
+          "organism_id": "AL-01-child-244",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.991,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.991
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.921
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.667
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.56,
+              "mutate_ratio": 0.4,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 150,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 400,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.974
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.99
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-245": {
+          "organism_id": "AL-01-child-245",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.835,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.835
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.804
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.767
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.54,
+              "mutate_ratio": 0.46,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.989
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 650,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.988
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-246": {
+          "organism_id": "AL-01-child-246",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.975
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-247": {
+          "organism_id": "AL-01-child-247",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.993,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.993
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "resilient",
+              "at_decision": 50,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.986
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-248": {
+          "organism_id": "AL-01-child-248",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.992,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.992
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.5,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.987
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.994
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.994
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-249": {
+          "organism_id": "AL-01-child-249",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.889
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.773
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.4,
+              "mutate_ratio": 0.6,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.987
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 250,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.97
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.97
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-250": {
+          "organism_id": "AL-01-child-250",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.973,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.973
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.967
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.878
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.42,
+              "mutate_ratio": 0.58,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.979
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.997
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.985
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.985
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-251": {
+          "organism_id": "AL-01-child-251",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.995,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.995
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.775
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.62,
+              "mutate_ratio": 0.34,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-252": {
+          "organism_id": "AL-01-child-252",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.985,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.985
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 650,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.993
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-253": {
+          "organism_id": "AL-01-child-253",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.99
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-254": {
+          "organism_id": "AL-01-child-254",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.984,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.984
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.996
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.979
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.996
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-255": {
+          "organism_id": "AL-01-child-255",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.959,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.959
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.767
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.52,
+              "mutate_ratio": 0.46,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.984
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.981
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-256": {
+          "organism_id": "AL-01-child-256",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.991,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.991
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.889
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.64,
+              "mutate_ratio": 0.36,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 400,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 450,
+              "confidence": 0.968
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.976
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-257": {
+          "organism_id": "AL-01-child-257",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.99,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.99
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.979
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 400,
+              "confidence": 0.997
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 450,
+              "confidence": 0.99
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.992
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-258": {
+          "organism_id": "AL-01-child-258",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.984,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.984
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.8
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.5,
+              "mutate_ratio": 0.48,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 500,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.988
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-259": {
+          "organism_id": "AL-01-child-259",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.865,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.865
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.551
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.982
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 250,
+              "confidence": 0.959
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-260": {
+          "organism_id": "AL-01-child-260",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.99,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.99
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.975
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-261": {
+          "organism_id": "AL-01-child-261",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.993,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.993
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.998
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 700,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.988
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-262": {
+          "organism_id": "AL-01-child-262",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.991,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.991
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.875
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 250,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.971
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-263": {
+          "organism_id": "AL-01-child-263",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.987,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.987
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.876
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.7
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.56,
+              "mutate_ratio": 0.42,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.992
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 450,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.988
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.99
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-264": {
+          "organism_id": "AL-01-child-264",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.873,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.606
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "specialist",
+              "at_decision": 50,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 100,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.985
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.987
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.972
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-265": {
+          "organism_id": "AL-01-child-265",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.995,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.995
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-266": {
+          "organism_id": "AL-01-child-266",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.992,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.992
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.994
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-267": {
+          "organism_id": "AL-01-child-267",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.973,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.973
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.991
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.97
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-268": {
+          "organism_id": "AL-01-child-268",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.907,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.907
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.833
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.75
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.667
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.6,
+              "mutate_ratio": 0.4,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 150,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.971
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 1.0
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.986
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-269": {
+          "organism_id": "AL-01-child-269",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.991,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.991
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.967
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.982
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 500,
+              "confidence": 0.981
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-270": {
+          "organism_id": "AL-01-child-270",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.972,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.972
+              },
+              {
+                "name": "energy-hoarder",
+                "confidence": 0.75
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.667
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.6,
+              "mutate_ratio": 0.4,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 150,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.996
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.989
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-271": {
+          "organism_id": "AL-01-child-271",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.958,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.958
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.867
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.5,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 250,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.99
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-272": {
+          "organism_id": "AL-01-child-272",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.979
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.983
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 500,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 650,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.994
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-273": {
+          "organism_id": "AL-01-child-273",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.99,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.99
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.87
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-274": {
+          "organism_id": "AL-01-child-274",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "explorer",
+            "confidence": 1.0,
+            "all_strategies": [
+              {
+                "name": "explorer",
+                "confidence": 1.0
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.985
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.701
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.34,
+              "mutate_ratio": 0.66,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.993
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.972
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 650,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.99
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-275": {
+          "organism_id": "AL-01-child-275",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.841,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.841
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.77
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.973
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.997
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-276": {
+          "organism_id": "AL-01-child-276",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.989,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.989
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.867
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.992
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 500,
+              "confidence": 0.977
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 550,
+              "confidence": 0.991
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 600,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 750,
+              "confidence": 0.987
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-277": {
+          "organism_id": "AL-01-child-277",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.985,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.985
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.869
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.97
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.984
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.985
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-278": {
+          "organism_id": "AL-01-child-278",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "resilient",
+            "confidence": 0.872,
+            "all_strategies": [
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              },
+              {
+                "name": "specialist",
+                "confidence": 0.788
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.988
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.99
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-279": {
+          "organism_id": "AL-01-child-279",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.995,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.995
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.833
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.5,
+              "mutate_ratio": 0.5,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.965
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.989
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "energy-hoarder",
+              "at_decision": 500,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.989
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.979
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-280": {
+          "organism_id": "AL-01-child-280",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.854
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.986
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.984
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-281": {
+          "organism_id": "AL-01-child-281",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.992,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.992
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.974
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 200,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.984
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-282": {
+          "organism_id": "AL-01-child-282",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.988,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.988
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.994
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 300,
+              "confidence": 0.98
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 350,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 600,
+              "confidence": 0.997
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-283": {
+          "organism_id": "AL-01-child-283",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.986,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.986
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.9
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.872
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.46,
+              "mutate_ratio": 0.54,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "specialist",
+              "at_decision": 150,
+              "confidence": 0.986
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.988
+            },
+            {
+              "from": "specialist",
+              "to": "resilient",
+              "at_decision": 600,
+              "confidence": 0.985
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 650,
+              "confidence": 0.99
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 700,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 750,
+              "confidence": 0.986
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-284": {
+          "organism_id": "AL-01-child-284",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.99,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.99
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.873
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.733
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.56,
+              "mutate_ratio": 0.44,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "generalist",
+              "at_decision": 150,
+              "confidence": 0.971
+            },
+            {
+              "from": "generalist",
+              "to": "resilient",
+              "at_decision": 200,
+              "confidence": 0.984
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 350,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.973
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 650,
+              "confidence": 0.975
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "resilient",
+              "at_decision": 700,
+              "confidence": 0.969
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 750,
+              "confidence": 1.0
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-285": {
+          "organism_id": "AL-01-child-285",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.987,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.987
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.87
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.867
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.48,
+              "mutate_ratio": 0.52,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.978
+            },
+            {
+              "from": "resilient",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.976
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 550,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        },
+        "AL-01-child-286": {
+          "organism_id": "AL-01-child-286",
+          "decision_history_len": 50,
+          "classification": {
+            "strategy": "specialist",
+            "confidence": 0.996,
+            "all_strategies": [
+              {
+                "name": "specialist",
+                "confidence": 0.996
+              },
+              {
+                "name": "explorer",
+                "confidence": 0.933
+              },
+              {
+                "name": "resilient",
+                "confidence": 0.871
+              }
+            ],
+            "details": {
+              "stabilize_ratio": 0.44,
+              "mutate_ratio": 0.56,
+              "blend_ratio": 0.0,
+              "decision_count": 50
+            }
+          },
+          "strategy_drift_history": [
+            {
+              "from": "unknown",
+              "to": "explorer",
+              "at_decision": 50,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 150,
+              "confidence": 0.981
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 200,
+              "confidence": 0.995
+            },
+            {
+              "from": "specialist",
+              "to": "energy-hoarder",
+              "at_decision": 250,
+              "confidence": 1.0
+            },
+            {
+              "from": "energy-hoarder",
+              "to": "specialist",
+              "at_decision": 300,
+              "confidence": 0.991
+            },
+            {
+              "from": "specialist",
+              "to": "explorer",
+              "at_decision": 400,
+              "confidence": 1.0
+            },
+            {
+              "from": "explorer",
+              "to": "resilient",
+              "at_decision": 500,
+              "confidence": 0.982
+            },
+            {
+              "from": "resilient",
+              "to": "specialist",
+              "at_decision": 700,
+              "confidence": 0.991
+            }
+          ],
+          "decision_count": 790
+        }
+      },
+      "strategy_distribution": {
+        "specialist": 44,
+        "resilient": 13,
+        "explorer": 3
+      },
+      "diversity": {
+        "shannon": 0.708603,
+        "simpson": 0.412778,
+        "richness": 3,
+        "evenness": 0.644998
+      },
+      "convergence": {
+        "status": "stable",
+        "slope": 2.465e-05,
+        "current_variance": 0.0007731,
+        "variance_samples": 20,
+        "trait_convergence": {
+          "energy_efficiency": "stable",
+          "creativity": "stable",
+          "resilience": "stable",
+          "adaptability": "stable",
+          "perception": "stable"
+        },
+        "fitness_spread": 0.071981
+      },
+      "tracked_organisms": 60
+    },
+    "evolution_tracker": {
+      "generation_counter": 23,
+      "mutation_events": 24724,
+      "lineages": 159
+    },
+    "experiment": null,
+    "snapshot_manager": {
+      "running": true,
+      "interval_seconds": 3600,
+      "retention_days": 30,
+      "total_snapshots": 206,
+      "snapshots_this_session": 10,
+      "disk_usage_bytes": 12633076,
+      "disk_usage_mb": 12.05,
+      "oldest_snapshot": "2026-02-27T11:04:45.712858+00:00",
+      "newest_snapshot": "2026-03-13T12:05:16.240541+00:00",
+      "remote_sync_enabled": true,
+      "snapshot_dir": "D:\\AL-01\\snapshots/hourly"
+    }
+  },
+  "checksum": "91b93d291fc46d0453ac3a17b55cd6966b8a17504bb234425ebac7d70108a469"
+}

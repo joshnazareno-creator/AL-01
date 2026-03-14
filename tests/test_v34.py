@@ -284,8 +284,20 @@ class TestChildSurvivalGrace(unittest.TestCase):
         )
         # Spawn extra filler children so extinction recovery doesn't wake
         # the dormant child (pop must stay >= 5)
-        for _ in range(5):
-            self.org.population.spawn_child(Genome(), 0)
+        # v3.31: Set diverse trait values to avoid trait collapse emergency
+        # v3.32: Give diverse strategies to avoid strategy convergence emergency
+        strat_decisions = ["mutate", "stabilize", "blend"]
+        for i in range(5):
+            fg = Genome(rng_seed=500 + i * 100)
+            spread = i / 4  # 0.0 .. 1.0
+            for tname in list(fg.traits.keys()):
+                fg.set_trait(tname, 0.1 + spread * 0.8)
+            fc = self.org.population.spawn_child(fg, 0)
+            if fc:
+                profile = self.org._behavior_analyzer.get_or_create_profile(fc["id"])
+                dec = strat_decisions[i % len(strat_decisions)]
+                for _ in range(20):
+                    profile.record_decision(dec, energy=0.5, fitness=0.5, traits={})
 
     def test_child_dies_after_grace_cycles(self):
         """v3.28: Child dies permanently after exceeding survival grace cycles."""

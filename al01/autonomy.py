@@ -942,6 +942,16 @@ class AutonomyEngine:
         # v3.25: Founder recovery flags from env_modifiers
         founder_recovery = env.get("founder_recovery_mode", False)
         founder_mutate_blocked = env.get("founder_mutate_blocked", False)
+        # v3.31: Trait collapse emergency — override founder block, force exploration
+        trait_collapse_emergency = env.get("trait_collapse_emergency", False)
+        if trait_collapse_emergency:
+            founder_mutate_blocked = False  # allow mutation to break monoculture
+            if not self._exploration_mode:
+                self._exploration_mode = True
+                self._exploration_cycles_remaining = max(
+                    self._exploration_cycles_remaining,
+                    self._config.stagnation_exploration_cycles,
+                )
 
         if self._recovery_mode:
             # v3.6: Recovery takes highest priority — force stabilize to

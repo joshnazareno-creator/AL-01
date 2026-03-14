@@ -85,6 +85,17 @@ RARE_REPRO_COOLDOWN_CYCLES: int = 2000  # min cycles between births per parent
 # ── v3.29: Restart recovery constants ─────────────────────────────────
 RESTART_RECOVERY_CYCLES: int = 50       # cycles after boot before full selection
 
+# ── v3.31: Extinction wave prevention constants ───────────────────────
+MAX_FITNESS_DEATHS_PER_CYCLE: int = 3   # cap fitness-floor kills per child cycle
+TRAIT_COLLAPSE_EMERGENCY_CYCLES: int = 20  # cycles of reduced death pressure
+TRAIT_COLLAPSE_DEATH_CAP: int = 1       # max deaths per cycle during emergency
+TRAIT_COLLAPSE_MUTATION_BOOST: float = 0.10  # extra mutation rate during emergency
+TRAIT_COLLAPSE_VARIANCE_FLOOR: float = 0.001  # threshold for declaring collapse
+
+# ── v3.32: Monoculture recovery constants ─────────────────────────────
+STRATEGY_CONVERGENCE_THRESHOLD: float = 0.95  # same-strategy fraction → emergency
+MONOCULTURE_PENALTY_FLOOR_CRITICAL: float = 0.50  # penalty floor when pop critical / emergency
+
 # ── v3.12: Novelty & stagnation detection constants ─────────────────
 NOVELTY_HISTORY_MAX: int = 500          # rolling window of novelty scores
 NOVELTY_STAGNATION_WINDOW: int = 100    # last N births to average
@@ -536,6 +547,9 @@ class Organism:
 
         # v3.29: Restart recovery — protect organisms from artificial extinction on boot
         self._restart_recovery_remaining: int = 0
+
+        # v3.31: Trait collapse emergency — reduce death pressure during convergence
+        self._trait_collapse_emergency_remaining: int = 0
 
         # v3.4: Default population cap (overridden by ExperimentConfig when active)
         self._default_max_population: int = 60
@@ -1237,6 +1251,8 @@ class Organism:
         )
         env_modifiers["founder_recovery_mode"] = self._founder_recovery_mode
         env_modifiers["founder_mutate_blocked"] = founder_mutate_blocked
+        # v3.31: Pass trait collapse emergency to autonomy
+        env_modifiers["trait_collapse_emergency"] = self._trait_collapse_emergency_remaining > 0
 
         energy_before = self._autonomy.energy
 
@@ -1846,12 +1862,101 @@ class Organism:
             survival_threshold = self._experiment.config.survival_fitness_threshold
             survival_grace = self._experiment.config.survival_grace_cycles
 
+        # v3.31: Track fitness-floor deaths this cycle for per-cycle cap
+        fitness_deaths_this_cycle: int = 0
+
+        # v3.31: Trait collapse emergency detection — check population-wide
+        # trait variance BEFORE processing individual deaths
+        if self._trait_collapse_emergency_remaining > 0:
+            self._trait_collapse_emergency_remaining -= 1
+            if self._trait_collapse_emergency_remaining == 0:
+                self._logger.info(
+                    "[ECOLOGY] Trait collapse emergency ended — "
+                    "normal death pressure restored"
+                )
+        else:
+            # Sample trait variance across living population
+            all_trait_vecs: List[List[float]] = []
+            for mid in self._population.member_ids:
+                if mid == "AL-01":
+                    continue
+                m = self._population.get(mid)
+                if m and m.get("genome"):
+                    tv = list(Genome.from_dict(m["genome"]).traits.values())
+                    if tv:
+                        all_trait_vecs.append(tv)
+            if len(all_trait_vecs) >= 3:
+                # Compute mean INTER-organism variance per trait dimension
+                n_traits = len(all_trait_vecs[0])
+                per_trait_vars: List[float] = []
+                for ti in range(n_traits):
+                    vals = [tv[ti] for tv in all_trait_vecs if ti < len(tv)]
+                    if len(vals) >= 2:
+                        mean_v = sum(vals) / len(vals)
+                        var_v = sum((v - mean_v) ** 2 for v in vals) / len(vals)
+                        per_trait_vars.append(var_v)
+                pop_mean_variance = (
+                    sum(per_trait_vars) / len(per_trait_vars)
+                    if per_trait_vars else 1.0
+                )
+                if pop_mean_variance < TRAIT_COLLAPSE_VARIANCE_FLOOR:
+                    self._trait_collapse_emergency_remaining = (
+                        TRAIT_COLLAPSE_EMERGENCY_CYCLES
+                    )
+                    self._logger.warning(
+                        "[ECOLOGY] TRAIT COLLAPSE EMERGENCY: "
+                        "pop_mean_variance=%.6f < %.4f — "
+                        "activating %d-cycle emergency (death_cap=%d, "
+                        "mutation_boost=+%.2f)",
+                        pop_mean_variance,
+                        TRAIT_COLLAPSE_VARIANCE_FLOOR,
+                        TRAIT_COLLAPSE_EMERGENCY_CYCLES,
+                        TRAIT_COLLAPSE_DEATH_CAP,
+                        TRAIT_COLLAPSE_MUTATION_BOOST,
+                    )
+
+        # v3.32: Compute strategy distribution early — needed for convergence check
+        strategy_dist = self._behavior_analyzer.population_strategy_distribution()
+
+        # v3.32: Strategy convergence detection — even if traits are diverse,
+        # if ≥95% of organisms share the same strategy, that's also a collapse
+        if not self._trait_collapse_emergency_remaining:
+            total_strats = sum(strategy_dist.values())
+            if total_strats >= 3:
+                max_strat_count = max(strategy_dist.values()) if strategy_dist else 0
+                if max_strat_count / total_strats >= STRATEGY_CONVERGENCE_THRESHOLD:
+                    dominant_strat = max(strategy_dist, key=lambda k: strategy_dist[k])
+                    self._trait_collapse_emergency_remaining = (
+                        TRAIT_COLLAPSE_EMERGENCY_CYCLES
+                    )
+                    self._logger.warning(
+                        "[ECOLOGY] STRATEGY CONVERGENCE EMERGENCY: "
+                        "strategy=%s fraction=%.2f (%d/%d) — "
+                        "activating %d-cycle emergency (death_cap=%d, "
+                        "mutation_boost=+%.2f, penalty_floor=%.2f)",
+                        dominant_strat, max_strat_count / total_strats,
+                        max_strat_count, total_strats,
+                        TRAIT_COLLAPSE_EMERGENCY_CYCLES,
+                        TRAIT_COLLAPSE_DEATH_CAP,
+                        TRAIT_COLLAPSE_MUTATION_BOOST,
+                        MONOCULTURE_PENALTY_FLOOR_CRITICAL,
+                    )
+
+        # v3.31: Compute effective death cap for this cycle
+        if self._trait_collapse_emergency_remaining > 0:
+            death_cap = TRAIT_COLLAPSE_DEATH_CAP
+        else:
+            death_cap = MAX_FITNESS_DEATHS_PER_CYCLE
+
         # v3.9: Elite protection — top organisms are shielded from mutation
         elite_set = set(self._population.elite_ids())
 
-        # v3.11: Compute strategy distribution once for anti-monoculture
-        # and explorer novelty reward across the entire child cycle.
-        strategy_dist = self._behavior_analyzer.population_strategy_distribution()
+        # v3.32: Determine if population is in critical zone (at/near floor)
+        _pop_critical = (
+            self._population.size
+            <= self._population.min_population_floor + 2
+        )
+
         # v3.11: Check if shock is active for resilience bonus
         shock_active = self._environment.is_shock_active
         shock_resilience_bonus = self._environment.shock_resilience_bonus
@@ -1886,6 +1991,7 @@ class Organism:
             )
 
             fitness = child_genome.weighted_fitness(env_weights)
+            raw_fitness = fitness  # v3.31: preserve pre-modifier value for logging
             child_traits = child_genome.traits
 
             # ── v3.11: Ecosystem pressure modifiers ──────────────────
@@ -1897,6 +2003,13 @@ class Organism:
             monoculture_penalty = self._population.strategy_dominance_penalty(
                 strategy_dist, organism_strategy,
             )
+            # v3.32: Soften monoculture penalty during emergency or
+            # when population is at/near the floor — prevents zombie state
+            # where penalty makes survival mathematically impossible.
+            if (self._trait_collapse_emergency_remaining > 0 or _pop_critical):
+                monoculture_penalty = max(
+                    monoculture_penalty, MONOCULTURE_PENALTY_FLOOR_CRITICAL,
+                )
             fitness *= monoculture_penalty
 
             # 2. Explorer novelty reward: boost when explorers are rare
@@ -1963,21 +2076,65 @@ class Organism:
             # v3.13: Scarcity pressure reduces survival grace
             base_survival_grace = survival_grace
             effective_grace = self._environment.effective_survival_grace(base_survival_grace)
+            # v3.31: During trait collapse emergency, extend grace period
+            if self._trait_collapse_emergency_remaining > 0:
+                effective_grace = max(effective_grace, TRAIT_COLLAPSE_EMERGENCY_CYCLES)
             # v3.29: Skip child death during restart recovery window
             if self._restart_recovery_remaining <= 0:
                 if fitness < survival_threshold:
                     self._below_fitness_cycles[oid] = self._below_fitness_cycles.get(oid, 0) + 1
-                    if self._below_fitness_cycles[oid] >= effective_grace:
-                        self._logger.warning(
-                            "[SURVIVAL] %s below fitness floor %.4f for %d cycles — death",
-                            oid, survival_threshold, self._below_fitness_cycles[oid],
-                        )
-                        self._handle_death(oid, "fitness_floor")
-                        results.append({
-                            "organism_id": oid, "decision": "death",
-                            "cause": "fitness_floor", "fitness": fitness,
-                        })
-                        continue
+                    streak = self._below_fitness_cycles[oid]
+                    if streak >= effective_grace:
+                        # v3.31: Enforce per-cycle death cap
+                        if fitness_deaths_this_cycle >= death_cap:
+                            # Cap reached — log probation instead of killing
+                            self._logger.info(
+                                "[SURVIVAL] %s death deferred (cap %d/%d): "
+                                "raw_fitness=%.4f effective_fitness=%.4f "
+                                "threshold=%.4f streak=%d/%d "
+                                "monoculture_pen=%.3f emergency=%s",
+                                oid, fitness_deaths_this_cycle, death_cap,
+                                raw_fitness, fitness,
+                                survival_threshold, streak,
+                                effective_grace, monoculture_penalty,
+                                self._trait_collapse_emergency_remaining > 0,
+                            )
+                            results.append({
+                                "organism_id": oid, "decision": "probation",
+                                "cause": "death_cap_reached",
+                                "raw_fitness": raw_fitness,
+                                "effective_fitness": fitness,
+                                "threshold": survival_threshold,
+                                "streak": streak,
+                            })
+                            # Don't reset streak — they're still below threshold
+                        else:
+                            # v3.31: Detailed death diagnostics
+                            self._logger.warning(
+                                "[SURVIVAL] %s DEATH: raw_fitness=%.4f "
+                                "effective_fitness=%.4f threshold=%.4f "
+                                "streak=%d/%d monoculture_pen=%.3f "
+                                "strategy=%s energy=%.4f "
+                                "emergency=%s cycle=%d",
+                                oid, raw_fitness, fitness,
+                                survival_threshold, streak,
+                                effective_grace, monoculture_penalty,
+                                organism_strategy, energy,
+                                self._trait_collapse_emergency_remaining > 0,
+                                self._global_cycle,
+                            )
+                            self._handle_death(oid, "fitness_floor")
+                            fitness_deaths_this_cycle += 1
+                            results.append({
+                                "organism_id": oid, "decision": "death",
+                                "cause": "fitness_floor",
+                                "raw_fitness": raw_fitness,
+                                "effective_fitness": fitness,
+                                "threshold": survival_threshold,
+                                "streak": streak,
+                                "monoculture_penalty": monoculture_penalty,
+                            })
+                            continue
                 else:
                     self._below_fitness_cycles[oid] = 0
 
@@ -1989,6 +2146,11 @@ class Organism:
             # Apply exploration mode boost if active
             if self._autonomy.exploration_mode:
                 mutation_rate = min(1.0, mutation_rate + self._autonomy.config.stagnation_mutation_boost)
+
+            # v3.31: Trait collapse emergency — boost mutation to break monoculture
+            if self._trait_collapse_emergency_remaining > 0:
+                mutation_rate = min(1.0, mutation_rate + TRAIT_COLLAPSE_MUTATION_BOOST)
+                mutation_delta = min(0.3, mutation_delta + TRAIT_COLLAPSE_MUTATION_BOOST)
 
             # v3.23: Stress feedback — boost mutation rate under high stress
             child_energy_stress = max(0.0, 1.0 - energy * 2.0)
@@ -2936,6 +3098,10 @@ class Organism:
             self._conservation_mode = {
                 k: bool(v) for k, v in self._state.get("conservation_mode", {}).items()
             }
+            # v3.31: Restore trait collapse emergency countdown
+            self._trait_collapse_emergency_remaining = int(
+                self._state.get("trait_collapse_emergency_remaining", 0)
+            )
 
         # v3.29: Restore environment from persisted state (prevents trait-weight drift)
         env_state = self._state.get("environment_state")
@@ -3102,6 +3268,8 @@ class Organism:
             self._state["below_fitness_cycles"] = {k: int(v) for k, v in self._below_fitness_cycles.items()}
             self._state["last_birth_cycle"] = {k: int(v) for k, v in self._last_birth_cycle.items()}
             self._state["conservation_mode"] = {k: bool(v) for k, v in self._conservation_mode.items()}
+            # v3.31: Persist trait collapse emergency countdown
+            self._state["trait_collapse_emergency_remaining"] = self._trait_collapse_emergency_remaining
             self._state["environment_state"] = self._environment.to_dict()
             state_snapshot = self._serialize_state(self._state)
         self._memory_manager.save_state(state_snapshot)
@@ -3343,6 +3511,8 @@ class Organism:
             "last_birth_cycle": base.get("last_birth_cycle", {}),
             "conservation_mode": base.get("conservation_mode", {}),
             "environment_state": base.get("environment_state", None),
+            # v3.31: Trait collapse emergency countdown
+            "trait_collapse_emergency_remaining": int(base.get("trait_collapse_emergency_remaining", 0)),
         }
 
     def _serialize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -3376,6 +3546,8 @@ class Organism:
             "last_birth_cycle": {k: int(v) for k, v in self._last_birth_cycle.items()},
             "conservation_mode": {k: bool(v) for k, v in self._conservation_mode.items()},
             "environment_state": self._environment.to_dict(),
+            # v3.31
+            "trait_collapse_emergency_remaining": int(self._trait_collapse_emergency_remaining),
         }
 
 
